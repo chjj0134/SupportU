@@ -1,4 +1,4 @@
-# Data Schema
+# Data Schema -- 수정중
 
 SupportU 프로젝트의 정책 데이터 수집 → 정규화 → DB 적재 과정에서 사용하는 공통 스키마를 정의한 문서이다.
 
