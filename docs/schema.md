@@ -1,4 +1,6 @@
-# Data Schema -- 수정중
+# Data Schema (수정중)
+
+수정일: 26.05.08 16:41
 
 SupportU 프로젝트의 정책 데이터 수집 → 정규화 → DB 적재 과정에서 사용하는 공통 스키마를 정의한 문서이다.
 
@@ -51,28 +53,40 @@ SupportU 프로젝트의 정책 데이터 수집 → 정규화 → DB 적재 과
 
 ```json
 {
-  "pid": "seoul_2025_001",
-  "title": "청년 월세 한시 특별지원",
+  "policy_id": "seoul_2025_001",
+  "data_scope": "서울",
+  "source_site": "youth.seoul.go.kr",
+  "source_name": "서울 청년포털",
+  "policy_title": "2026 서울청년문화패스",
+  "title": "서울청년문화패스",
+  "detail_url": "https://youth.seoul.go.kr/infoData/plcyInfo/view.do?plcyBizId=V202600004",
   "summary": "무주택 청년에게 월 최대 20만원 월세 지원",
-  "category": "주거",
+  "support_content": "공연 및 전시 관람에 사용할 수 있는 문화이용권(바우처) 지급",
   "region": "서울특별시",
-  "age_min": 19,
-  "age_max": 34,
-  "income_criteria": "중위소득 60% 이하",
-  "income_max_pct": 60,
-  "employment_status": ["재직자", "자영업자", "무직"],
+  "scity": null,
+  "amin": 21.0,
+  "amax": 23.0,
+  "pstart": "2025-03-01",
+  "pend": "2025-12-31",
+  "ostart": null,
+  "oend": "2026-12-31",
+  "income": "중위소득 150% 이하",
+  "asset": null,
   "education": null,
-  "disability_required": false,
-  "apply_start": "2025-03-01",
-  "apply_end": "2025-12-31",
-  "required_documents": ["주민등록등본", "임대차계약서", "건강보험료 납부확인서"],
-  "benefit_detail": "월 최대 200,000원, 최대 12개월",
-  "apply_url": "https://example.go.kr/policy/001",
-  "source": "seoul",
-  "source_id": "seoul_raw_001",
-  "is_active": true,
-  "created_at": "2025-01-01T00:00:00Z",
-  "updated_at": "2025-01-01T00:00:00Z"
+  "employment": null,
+  "disability": null,
+  "gender": null,
+  "eligibility": "만 21~23세 서울 거주 청년, 중위소득 150% 이하",
+  "add_condition": null,
+  "required_documents": "신분증",
+  "application_method": "청년몽땅정보통(youth.seoul.go.kr)에서 온라인 신청",
+  "crawl_status": null,
+  "crawl_reason": null,
+  "ai_status": null,
+  "ai_reason": null,
+  "ai_evidence": null,
+  "error": null,
+  "sync_updated_at": "2025-01-01T00:00:00Z"
 }
 ```
 
@@ -80,30 +94,123 @@ SupportU 프로젝트의 정책 데이터 수집 → 정규화 → DB 적재 과
 
 ## 5. 필드 정의
 
+### policies
+
 | 필드명 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `pid` | string | ✅ | `{source}_{year}_{sequence}` 형태의 고유 ID |
-| `title` | string | ✅ | 정책명 (최대 255자) |
-| `summary` | string | ✅ | LLM이 생성한 핵심 요약 (최대 500자) |
-| `category` | string | ✅ | `주거` / `일자리` / `복지` / `금융` / `문화예술` |
-| `region` | string | ✅ | 대상 지역 (예: `서울특별시`, `경기도`, `전국`) |
-| `age_min` | int | ✅ | 지원 가능 최소 연령 |
-| `age_max` | int | ✅ | 지원 가능 최대 연령 |
-| `income_criteria` | string | ❌ | 소득 기준 원문 (예: "중위소득 150% 이하") |
-| `income_max_pct` | int | ❌ | LLM이 수치화한 소득 기준 % (없으면 null) |
-| `employment_status` | string[] | ❌ | 해당 취업 상태 목록 (null이면 제한 없음) |
-| `education` | string | ❌ | 학력 요건 (null이면 제한 없음) |
-| `disability_required` | boolean | ✅ | 장애인 대상 여부 |
-| `apply_start` | date | ❌ | 신청 시작일 (`YYYY-MM-DD`) |
-| `apply_end` | date | ❌ | 신청 마감일 (`YYYY-MM-DD`) |
-| `required_documents` | string[] | ✅ | 필요 서류 목록 |
-| `benefit_detail` | string | ❌ | 지원 내용 상세 |
-| `apply_url` | string | ✅ | 원본 공고문 링크 |
-| `source` | string | ✅ | `seoul` / `gyeonggi` / `central` |
-| `source_id` | string | ✅ | 출처 시스템의 원본 ID (중복 제거 기준) |
-| `is_active` | boolean | ✅ | 현재 모집 중 여부 |
-| `created_at` | datetime | ✅ | 최초 수집 일시 (ISO 8601) |
-| `updated_at` | datetime | ✅ | 최종 갱신 일시 (ISO 8601) |
+| `policy_id` | varchar | ✅ | 정책 고유 ID (PK) |
+| `data_scope` | varchar | ❌ | 데이터 범위 (서울 / 경기) |
+| `source_site` | varchar | ❌ | 크롤링 출처 사이트 URL |
+| `source_name` | varchar | ❌ | 출처명 (예: 서울 청년포털) |
+| `policy_title` | varchar | ❌ | 원본 정책명 (크롤링 원문) |
+| `title` | varchar | ✅ | 정제된 정책명 |
+| `detail_url` | varchar | ❌ | 정책 상세 페이지 URL |
+| `summary` | text | ❌ | LLM이 생성한 핵심 요약 |
+| `support_content` | text | ❌ | 지원 내용 상세 |
+| `region` | varchar | ❌ | 대상 광역 지역 (서울특별시 / 경기도) |
+| `scity` | varchar | ❌ | 대상 시/구 (예: 강남구, 수원시) |
+| `amin` | numeric(4,1) | ❌ | 지원 가능 최소 연령 |
+| `amax` | numeric(4,1) | ❌ | 지원 가능 최대 연령 |
+| `pstart` | date | ❌ | 신청 시작일 |
+| `pend` | date | ❌ | 신청 마감일 |
+| `ostart` | date | ❌ | 운영 기간 시작일 |
+| `oend` | date | ❌ | 운영 기간 종료일 |
+| `income` | varchar | ❌ | 소득 기준 원문 (예: 중위소득 150% 이하) |
+| `asset` | varchar | ❌ | 자산 기준 원문 |
+| `education` | varchar | ❌ | 학력 요건 |
+| `employment` | varchar | ❌ | 취업 상태 (재직자 / 미취업자 등) |
+| `disability` | varchar | ❌ | 장애 여부 조건 |
+| `gender` | varchar | ❌ | 성별 제한 조건 |
+| `eligibility` | text | ❌ | 제한 대상 - 자격 요건 원문 |
+| `add_condition` | text | ❌ | 추가 신청 자격 조건 원문 |
+| `required_documents` | text | ❌ | 필요 서류 목록 |
+| `application_method` | text | ❌ | 신청 방법 |
+| `crawl_status` | varchar | ❌ | 크롤링 처리 상태 |
+| `crawl_reason` | text | ❌ | 크롤링 처리 비고 |
+| `ai_status` | varchar | ❌ | AI 후처리 상태 |
+| `ai_reason` | text | ❌ | AI 후처리 비고 |
+| `ai_evidence` | text | ❌ | AI 판단 근거 |
+| `error` | text | ❌ | 오류 메시지 |
+| `sync_updated_at` | timestamp | ❌ | 데이터 최종 동기화 일시 |
+
+### users
+
+| 필드명 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `uid` | varchar | ✅ | 유저 고유 ID (PK) |
+| `email` | varchar | ✅ | 이메일 |
+| `login` | varchar | ❌ | 로그인 방식 (기본값: google) |
+| `created_at` | timestamp | ❌ | 생성 일시 |
+| `updated_at` | timestamp | ❌ | 수정 일시 |
+
+### user_profiles
+
+| 필드명 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `uid` | varchar | ✅ | 유저 ID (PK, users 참조) |
+| `age` | int4 | ❌ | 나이 |
+| `gender` | varchar | ❌ | 성별 |
+| `city` | varchar | ❌ | 거주지 (시/도) |
+| `scity` | varchar | ❌ | 거주지 (구/군) |
+| `education` | varchar | ❌ | 최종학력 |
+| `employment` | varchar | ❌ | 취업 상태 |
+| `disability` | bool | ❌ | 장애 유무 |
+| `income` | varchar | ❌ | 소득 현황 |
+| `asset` | varchar | ❌ | 자산 현황 |
+| `created_at` | timestamp | ❌ | 생성 일시 |
+
+### user_calendar_events
+
+| 필드명 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `cid` | int8 | ✅ | 캘린더 이벤트 ID (PK) |
+| `uid` | varchar | ✅ | 유저 ID (users 참조) |
+| `policy_id` | varchar | ✅ | 정책 ID (policies 참조) |
+| `gid` | varchar | ❌ | 구글 캘린더 이벤트 ID |
+| `elink` | varchar | ❌ | 캘린더 딥링크 |
+| `apply` | bool | ❌ | 지원 여부 |
+| `created_at` | timestamp | ❌ | 생성 일시 |
+
+### document_drafts
+
+| 필드명 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `did` | int8 | ✅ | 초안 ID (PK) |
+| `uid` | varchar | ✅ | 유저 ID (users 참조) |
+| `policy_id` | varchar | ✅ | 정책 ID (policies 참조) |
+| `dcontent` | text | ❌ | 마크다운 초안 내용 |
+| `created_at` | timestamp | ❌ | 생성 일시 |
+
+### user_push_tokens
+
+| 필드명 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `uid` | varchar | ✅ | 유저 ID (PK, users 참조) |
+| `ntoken` | varchar | ✅ | 웹/앱 푸시 디바이스 토큰 |
+| `agreed` | bool | ❌ | 푸시 알림 수신 동의 여부 |
+| `updated_at` | timestamp | ❌ | 수정 일시 |
+
+### notifications
+
+| 필드명 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `nid` | int8 | ✅ | 알림 ID (PK) |
+| `uid` | varchar | ✅ | 유저 ID (users 참조) |
+| `cid` | int8 | ❌ | 연관 캘린더 이벤트 ID |
+| `title` | varchar | ✅ | 알림 제목 |
+| `message` | text | ✅ | 알림 상세 내용 |
+| `is_read` | bool | ❌ | 읽음 여부 |
+| `created_at` | timestamp | ❌ | 생성 일시 |
+
+### effect
+
+| 필드명 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `eid` | int8 | ✅ | 기대효과 ID (PK) |
+| `effect_summary` | text | ❌ | 기대효과 요약 |
+| `created_at` | timestamp | ❌ | 생성 일시 |
+| `updated_at` | timestamp | ❌ | 수정 일시 |
+| `cid` | int8 | ❌ | 연관 캘린더 이벤트 ID |
 
 ---
 
@@ -111,8 +218,8 @@ SupportU 프로젝트의 정책 데이터 수집 → 정규화 → DB 적재 과
 
 후가공 단계에서 아래 기준으로 중복 데이터를 제거한다.
 
-1. **1차**: `source` + `source_id` 조합이 동일한 경우 → 최신 `crawled_at` 데이터만 유지
-2. **2차**: `title` + `apply_end` + `region` 조합이 동일한 경우 → 동일 정책 판단, 병합 처리
+1. **1차**: `source_site` + `policy_id` 조합이 동일한 경우 → 최신 `sync_updated_at` 데이터만 유지
+2. **2차**: `title` + `pend` + `region` 조합이 동일한 경우 → 동일 정책 판단, 병합 처리
 
 ---
 
@@ -120,17 +227,33 @@ SupportU 프로젝트의 정책 데이터 수집 → 정규화 → DB 적재 과
 
 | Common Schema 필드 | policies 컬럼 | 비고 |
 |---|---|---|
-| `pid` | `pid` | PK |
-| `title` | `title` | |
-| `summary` | `summary` | |
-| `age_min` | `amin` | |
-| `age_max` | `amax` | |
+| `policy_id` | `policy_id` | PK |
+| `data_scope` | `data_scope` | |
+| `source_site` | `source_site` | |
+| `source_name` | `source_name` | |
+| `policy_title` | `policy_title` | 원문 정책명 |
+| `title` | `title` | 정제된 정책명 |
+| `detail_url` | `detail_url` | |
+| `summary` | `summary` | LLM 생성 |
+| `support_content` | `support_content` | |
 | `region` | `region` | |
-| `apply_start` | `pstart` | |
-| `apply_end` | `pend` | |
-| `apply_url` | `purl` | |
-| `category` | (추후 컬럼 추가 예정) | 백엔드와 협의 필요 |
-| `required_documents` | → `document_drafts` 테이블 | 별도 적재 |
+| `scity` | `scity` | |
+| `amin` | `amin` | |
+| `amax` | `amax` | |
+| `pstart` | `pstart` | |
+| `pend` | `pend` | |
+| `ostart` | `ostart` | |
+| `oend` | `oend` | |
+| `income` | `income` | |
+| `asset` | `asset` | |
+| `education` | `education` | |
+| `employment` | `employment` | |
+| `disability` | `disability` | |
+| `gender` | `gender` | |
+| `eligibility` | `eligibility` | 자격 요건 원문 |
+| `add_condition` | `add_condition` | 추가 조건 원문 |
+| `required_documents` | `required_documents` | |
+| `application_method` | `application_method` | |
 
 ---
 
@@ -140,3 +263,5 @@ SupportU 프로젝트의 정책 데이터 수집 → 정규화 → DB 적재 과
 |---|---|
 | `docs/convention.md` | Git 브랜치 전략 및 커밋 규칙 |
 | `docs/schema.md` | 본 문서 - 공통 데이터 스키마 |
+
+---
