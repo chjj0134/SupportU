@@ -11,6 +11,8 @@ SupportU 프로젝트의 정책 데이터 수집 → 정규화 → DB 적재 과
 
 **파이프라인 흐름**
 
+[크롤러] → raw JSON → [후가공] → Common Schema → [Supabase policies 테이블]
+
 ---
 
 ## 2. 데이터 출처
