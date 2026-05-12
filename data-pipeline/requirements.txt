@@ -1,0 +1,6 @@
+pandas
+beautifulsoup4
+lxml
+requests
+ollama
+selenium
