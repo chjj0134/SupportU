@@ -2,19 +2,22 @@ import { useState, useEffect } from "react";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import { fetchScrappedPolicies, fetchPolicyDetail } from "../../api/policies";
 import type { ScrappedPolicy } from "../../api/policies";
-import type { AuthUser, PolicyDetail } from "../../api/types";
-
-const P = ({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
-  <p className={className} style={{ fontFamily: "Pretendard, sans-serif", margin: 0, ...style }}>{children}</p>
-);
+import type { PolicyDetail } from "../../api/types";
+import { useAuth } from "../contexts/AuthContext";
+import { useQuery } from "../hooks/useQuery";
+import { P } from "./common/Typography";
+import { Spinner } from "./common/Spinner";
+import { ErrorMessage } from "./common/ErrorMessage";
+import { getCategoryStyle } from "../../constants/categories";
 
 /* ─────────────────────────── Data ─────────────────────────── */
 
-
+// 카테고리 색상은 constants/categories.ts에 정의된 토큰을 사용한다.
+// 한글 라벨 기반 매핑이 필요할 때 보조용으로 categoryColor를 유지.
 const categoryColor: Record<string, { bg: string; text: string; border: string }> = {
-  주거: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
-  일자리: { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
-  복지: { bg: "#faf5ff", text: "#9333ea", border: "#e9d5ff" },
+  주거: getCategoryStyle("주거"),
+  일자리: getCategoryStyle("일자리"),
+  복지: getCategoryStyle("복지"),
 };
 
 const compareFields: { key: keyof ScrappedPolicy; label: string }[] = [
@@ -501,11 +504,13 @@ function CompareModal({
 
 interface MyPageProps {
   onNavigate: (page: string, id?: string) => void;
-  user: AuthUser | null;
 }
 
-export function MyPage({ onNavigate, user }: MyPageProps) {
-  const [scrappedPolicies, setScrappedPolicies] = useState<ScrappedPolicy[]>([]);
+export function MyPage({ onNavigate }: MyPageProps) {
+  const { user } = useAuth();
+  const scrappedQuery = useQuery(() => fetchScrappedPolicies(), []);
+  const scrappedPolicies = scrappedQuery.data ?? [];
+
   const [mainTab, setMainTab] = useState<"scraps" | "management" | "profile">("scraps");
   const [subTab, setSubTab] = useState<"calendar" | "dashboard" | "policy">("dashboard");
   const [selected, setSelected] = useState<string[]>([]);
@@ -518,10 +523,6 @@ export function MyPage({ onNavigate, user }: MyPageProps) {
     "7": 2,
     "2": 0,
   });
-
-  useEffect(() => {
-    fetchScrappedPolicies().then(setScrappedPolicies);
-  }, []);
 
   // Profile state
   const [isEditingProfile, setIsEditingProfile] = useState(false);

@@ -1,67 +1,75 @@
 import { useState } from "react";
 import { saveProfile } from "../../api/profile";
 import type { ProfileRequest } from "../../api/types";
-
-const P = ({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
-  <p className={className} style={{ fontFamily: "Pretendard, sans-serif", margin: 0, ...style }}>{children}</p>
-);
+import { P } from "./common/Typography";
 
 interface SignupPageProps {
   onComplete: () => void;
   onCancel: () => void;
 }
 
+// 회원가입 폼 단계 정보 — 컴포넌트 외부에 두어 매 렌더 시 재생성 방지
+const TOTAL_STEPS = 4;
+const GENDER_API_VALUE: Record<string, string> = {
+  남성: "M",
+  여성: "F",
+  "선택 안함": "NONE",
+};
+
 export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    // Step 1
     userId: "",
     age: 25,
     gender: "선택 안함",
-    // Step 2
     region: "",
     district: "",
     education: "",
     employment: "",
-    // Step 3
     annualIncome: 0,
     assets: 0,
     hasDisability: false,
-    // Step 4
     interests: [] as string[],
   });
 
-  const totalSteps = 4;
+  const totalSteps = TOTAL_STEPS;
 
-  const handleNext = async () => {
+  const submitProfile = async () => {
+    const profileData: ProfileRequest = {
+      age: formData.age,
+      gender: GENDER_API_VALUE[formData.gender] ?? "NONE",
+      city: formData.region,
+      scity: formData.district,
+      education: formData.education,
+      employment: formData.employment,
+      disability: formData.hasDisability,
+      incomeInteger: formData.annualIncome * 10000,
+      asset: String(formData.assets * 10000),
+      preferredCategories: formData.interests,
+    };
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await saveProfile(profileData);
+      onComplete();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "프로필 저장에 실패했습니다.";
+      setSubmitError(message);
+      console.error("프로필 저장 실패:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleNext = () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
-      // 회원가입 완료 - 프로필 저장 API 호출
-      const genderMap: Record<string, string> = {
-        "남성": "M",
-        "여성": "F",
-        "선택 안함": "NONE",
-      };
-      const profileData: ProfileRequest = {
-        age: formData.age,
-        gender: genderMap[formData.gender] ?? "NONE",
-        city: formData.region,
-        scity: formData.district,
-        education: formData.education,
-        employment: formData.employment,
-        disability: formData.hasDisability,
-        incomeInteger: formData.annualIncome * 10000,
-        asset: String(formData.assets * 10000),
-        preferredCategories: formData.interests,
-      };
-      try {
-        await saveProfile(profileData);
-      } catch (err) {
-        console.error("프로필 저장 실패:", err);
-      }
-      onComplete();
+      submitProfile();
     }
   };
 
@@ -510,21 +518,30 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
               이전
             </button>
           )}
-          <button
-            onClick={handleNext}
-            disabled={!isStepValid()}
-            className="flex-1 py-4 rounded-xl text-base font-bold transition-all"
-            style={{
-              fontFamily: "Pretendard, sans-serif",
-              backgroundColor: isStepValid() ? "#006a63" : "#e9efed",
-              color: isStepValid() ? "white" : "#94a3b8",
-              border: "none",
-              cursor: isStepValid() ? "pointer" : "not-allowed",
-              boxShadow: isStepValid() ? "0 4px 12px rgba(0,106,99,0.25)" : "none",
-            }}
-          >
-            {currentStep === totalSteps ? "맞춤 공고 보러가기" : "다음"}
-          </button>
+          <div className="flex-1 flex flex-col gap-2">
+            {submitError && (
+              <P style={{ fontSize: 13, color: "#ba1a1a" }}>{submitError}</P>
+            )}
+            <button
+              onClick={handleNext}
+              disabled={!isStepValid() || isSubmitting}
+              className="w-full py-4 rounded-xl text-base font-bold transition-all"
+              style={{
+                fontFamily: "Pretendard, sans-serif",
+                backgroundColor: isStepValid() && !isSubmitting ? "#006a63" : "#e9efed",
+                color: isStepValid() && !isSubmitting ? "white" : "#94a3b8",
+                border: "none",
+                cursor: isStepValid() && !isSubmitting ? "pointer" : "not-allowed",
+                boxShadow: isStepValid() && !isSubmitting ? "0 4px 12px rgba(0,106,99,0.25)" : "none",
+              }}
+            >
+              {isSubmitting
+                ? "저장 중..."
+                : currentStep === totalSteps
+                  ? "맞춤 공고 보러가기"
+                  : "다음"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import imgHero from "figma:asset/2cb9345db44b046f538652abee8a7ed3e7d9b635.png";
 import { fetchPolicies, fetchPolicyDetail } from "../../api/policies";
-import type { Policy, PolicyDetail } from "../../api/types";
-
-const P = ({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
-  <p className={className} style={{ fontFamily: "Pretendard, sans-serif", margin: 0, ...style }}>{children}</p>
-);
+import { useQuery } from "../hooks/useQuery";
+import { P } from "./common/Typography";
+import { Spinner } from "./common/Spinner";
+import { ErrorMessage } from "./common/ErrorMessage";
 
 interface PolicyDetailPageProps {
   policyId: string;
@@ -13,19 +12,15 @@ interface PolicyDetailPageProps {
 }
 
 export function PolicyDetailPage({ policyId, onNavigate }: PolicyDetailPageProps) {
-  const [allPolicies, setAllPolicies] = useState<Policy[]>([]);
-  const [detail, setDetail] = useState<PolicyDetail | null>(null);
+  const policiesQuery = useQuery(() => fetchPolicies(), []);
+  const allPolicies = policiesQuery.data ?? [];
+
   const [applied, setApplied] = useState(false);
   const [selectedId, setSelectedId] = useState(policyId);
   const [filterCategory, setFilterCategory] = useState("전체");
 
-  useEffect(() => {
-    fetchPolicies().then(setAllPolicies);
-  }, []);
-
-  useEffect(() => {
-    fetchPolicyDetail(selectedId).then(setDetail);
-  }, [selectedId]);
+  const detailQuery = useQuery(() => fetchPolicyDetail(selectedId), [selectedId]);
+  const detail = detailQuery.data;
 
   const policy = allPolicies.find((p) => p.id === selectedId) ?? allPolicies[0];
 
@@ -49,10 +44,18 @@ export function PolicyDetailPage({ policyId, onNavigate }: PolicyDetailPageProps
         return true;
       });
 
-  if (!policy) {
+  if (policiesQuery.isLoading || !policy) {
     return (
-      <div className="min-h-screen pt-16 flex items-center justify-center" style={{ backgroundColor: "#f5fbf8" }}>
-        <P style={{ color: "#94a3b8" }}>정책 정보를 불러오는 중...</P>
+      <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
+        <Spinner label="정책 정보를 불러오는 중..." />
+      </div>
+    );
+  }
+
+  if (policiesQuery.error) {
+    return (
+      <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
+        <ErrorMessage error={policiesQuery.error} onRetry={policiesQuery.refetch} />
       </div>
     );
   }

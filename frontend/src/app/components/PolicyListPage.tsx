@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { fetchPolicies, fetchPolicyDetail, togglePolicyBookmark } from "../../api/policies";
 import type { Policy, PolicyDetail } from "../../api/types";
-
-const P = ({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
-  <p className={className} style={{ fontFamily: "Pretendard, sans-serif", margin: 0, ...style }}>{children}</p>
-);
+import { useQuery } from "../hooks/useQuery";
+import { P } from "./common/Typography";
+import { Spinner } from "./common/Spinner";
+import { ErrorMessage } from "./common/ErrorMessage";
 
 
 
@@ -224,19 +224,21 @@ interface PolicyListPageProps {
 }
 
 export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
-  const [policies, setPolicies] = useState<Policy[]>([]);
+  const policiesQuery = useQuery(() => fetchPolicies(), []);
+  const policies = policiesQuery.data ?? [];
+
   const [activeFilter, setActiveFilter] = useState("전체");
   const [sort, setSort] = useState("마감일 임박순");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
   const [detailPolicy, setDetailPolicy] = useState<Policy | null>(null);
 
+  // 정책 목록이 새로 들어오면 북마크 초기 상태를 동기화
   useEffect(() => {
-    fetchPolicies().then((data) => {
-      setPolicies(data);
-      setBookmarks(new Set(data.filter((p) => p.bookmarked).map((p) => p.id)));
-    });
-  }, []);
+    if (policiesQuery.data) {
+      setBookmarks(new Set(policiesQuery.data.filter((p) => p.bookmarked).map((p) => p.id)));
+    }
+  }, [policiesQuery.data]);
 
   const filtered = policies.filter((p) => {
     if (activeFilter === "전체") return true;
@@ -272,8 +274,24 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-    togglePolicyBookmark(id);
+    togglePolicyBookmark(id).catch((err) => console.error("북마크 토글 실패:", err));
   };
+
+  if (policiesQuery.isLoading) {
+    return (
+      <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
+        <Spinner label="정책을 불러오는 중..." />
+      </div>
+    );
+  }
+
+  if (policiesQuery.error) {
+    return (
+      <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
+        <ErrorMessage error={policiesQuery.error} onRetry={policiesQuery.refetch} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>

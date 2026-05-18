@@ -1,58 +1,10 @@
-// 백엔드 정책 API가 구현되면 아래 mock 데이터를 실제 API 호출로 교체
-// import { apiClient } from './client';
+import { apiClient } from './client';
 import type { Policy, PolicyDetail } from './types';
-
-const MOCK_POLICIES: Policy[] = [
-  { id: "1", title: "2025 청년 월세 지원사업", org: "서울주택도시공사(SH)", category: "Housing", categoryKr: "주거", deadline: "D-3", support: "최대 240만원", desc: "서울시 거주 무주택 청년들을 위한 최대 20만원 월세 지원 프로젝트입니다.", match: 97, region: "서울", bookmarked: true },
-  { id: "2", title: "청년 일자리 도약 장려금", org: "고용노동부", category: "Jobs", categoryKr: "일자리", deadline: "D-7", support: "최대 1,200만원", desc: "취업 애로 청년을 정규직으로 채용하는 중소기업에 인건비를 지원합니다.", match: 88, region: "전국", bookmarked: true },
-  { id: "3", title: "청년 마음건강 바우처", org: "보건복지부", category: "Welfare", categoryKr: "복지", deadline: "D-12", support: "최대 50만원", desc: "심리적 어려움을 겪는 청년에게 전문 심리상담 서비스를 지원합니다.", match: 75, region: "전국", bookmarked: false },
-  { id: "4", title: "역세권 청년주택 (SH)", org: "서울주택도시공사(SH)", category: "Housing", categoryKr: "주거", deadline: "상시", support: "주거 지원", desc: "역세권의 양질의 주택을 청년, 신혼부부에게 시세보다 저렴하게 공급합니다.", match: 92, region: "서울", bookmarked: true },
-  { id: "5", title: "청년일자리 도약장려금", org: "고용노동부", category: "Jobs", categoryKr: "취업", deadline: "D-30", support: "최대 1,200만원", desc: "취업애로청년을 채용한 중소기업에 인건비를 지원하여 청년의 취업을 돕습니다.", match: 83, region: "전국", bookmarked: false },
-  { id: "6", title: "청년 내일채움공제", org: "중소벤처기업부", category: "Jobs", categoryKr: "일자리", deadline: "D-45", support: "최대 1,200만원", desc: "중소기업에 취업한 청년이 2년간 근속하면 목돈을 마련할 수 있는 사업입니다.", match: 70, region: "전국", bookmarked: false },
-  { id: "7", title: "국민취업지원제도", org: "고용노동부", category: "Jobs", categoryKr: "일자리", deadline: "상시", support: "최대 300만원", desc: "취업을 원하는 청년에게 취업지원 서비스를 제공하고 생계지원도 함께 합니다.", match: 94, region: "전국", bookmarked: false },
-  { id: "8", title: "청년 내일저축계좌", org: "보건복지부", category: "Welfare", categoryKr: "복지", deadline: "D-60", support: "최대 1,440만원", desc: "일하는 저소득 청년이 매월 저축하면 정부가 지원금을 추가 적립해줍니다.", match: 65, region: "전국", bookmarked: false },
-];
-
-const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
-  "1": { fullDesc: "이 사업은 서울시에 거주하는 무주택 청년들을 위해 최대 월 20만원, 최대 12개월간 월세를 지원하는 사업입니다. 부모님과 별도 거주하는 청년을 대상으로 주거 안정을 위한 핵심 지원 정책입니다.", benefits: ["월세 최대 20만원 지원", "최대 12개월간 지원", "총 최대 240만원 지급"], amount: "월 최대 20만원", scope: "월세 지원금 직접 지급", duration: "최대 12개월", target: "만 19~34세 무주택 청년", method: "온라인 신청 (복지로)", eligibility: [{ label: "연령 (만 19세~39세)", value: "만 26세" }, { label: "거주지 (서울시)", value: "강남구 거주" }, { label: "소득 수준 (중위 60% 이하)", value: "대상 포함" }, { label: "주거 상태 (무주택자)", value: "무주택 확인" }] },
-  "2": { fullDesc: "이 사업은 구직에 어려움을 느끼는 청년들을 위해 심층 상담과 맞춤형 역량 강화 프로그램을 제공하며, 수료 시 총 300만원의 지원금을 지급하는 고용노동부 핵심 정책입니다.", benefits: ["인건비 월 최대 80만원 지원", "최대 12개월 지원", "추가 장려금 100만원"], amount: "월 최대 80만원", scope: "중소기업 인건비 지원", duration: "최대 12개월", target: "취업애로 청년 신규 채용 중소기업", method: "고용24 온라인 신청", eligibility: [{ label: "연령 (만 18세~34세)", value: "만 26세" }, { label: "거주지 (서울시)", value: "강남구 거주" }, { label: "소득 수준 (제한 없음)", value: "대상 포함" }, { label: "취업 상태 (미취업자)", value: "구직 중" }] },
-  "3": { fullDesc: "심리적 어려움을 겪고 있는 청년들에게 전문 심리상담 기관을 연결하고 바우처 형태로 상담 비용을 지원합니다. 정신건강 증진과 자립 지원을 위한 사업입니다.", benefits: ["심리상담 회당 최대 5만원 지원", "연 10회 지원", "전문 상담사 연결"], amount: "회당 최대 5만원 (연 10회)", scope: "전문 심리상담 서비스 지원", duration: "연 1회 (10회기)", target: "만 19~34세 심리지원 필요 청년", method: "복지로 온라인 신청", eligibility: [{ label: "연령 (만 19세~34세)", value: "만 26세" }, { label: "소득 기준 (중위 120% 이하)", value: "대상 포함" }, { label: "심리지원 필요 여부", value: "해당" }, { label: "기존 유사 서비스 이용 여부", value: "미이용" }] },
-  "4": { fullDesc: "지하철역 350m 이내 역세권에 위치한 양질의 청년주택을 시세의 85% 이하로 공급하는 사업입니다. 청년과 신혼부부의 주거 안정을 위한 서울시 핵심 주거 지원 정책입니다.", benefits: ["시세 85% 이하 임대료", "역세권 위치 주택", "최대 6년 거주 가능"], amount: "시세의 85% 이하 임대료", scope: "역세권 공공임대주택 공급", duration: "최대 6년 거주", target: "만 19~39세 무주택 청년·신혼부부", method: "SH청약센터 온라인 신청", eligibility: [{ label: "연령 (만 19세~39세)", value: "만 26세" }, { label: "거주지 (서울시)", value: "강남구 거주" }, { label: "주거 상태 (무주택)", value: "무주택 확인" }, { label: "신혼부부 여부", value: "해당 없음" }] },
-  "5": { fullDesc: "중소기업에 취업한 청년이 2년간 매월 12.5만원을 납입하면, 기업과 정부가 추가로 납입하여 만기 시 1,200만원을 수령할 수 있는 공제 사업입니다.", benefits: ["청년 납입 300만원", "기업 지원 400만원", "정부 지원 500만원 = 총 1,200만원"], amount: "만기 1,200만원 (정부+기업 지원)", scope: "장기재직 청년 자산형성 지원", duration: "2년 근속", target: "만 15~34세 중소기업 재직 청년", method: "내일채움공제 홈페이지 신청", eligibility: [{ label: "연령 (만 15세~34세)", value: "만 26세" }, { label: "취업 상태 (중소기업 재직)", value: "구직 중" }, { label: "근속 기간 (6개월 미만)", value: "신규 채용" }, { label: "기업 규모 (중소기업)", value: "해당 시 가능" }] },
-  "6": { fullDesc: "중소기업에 취업한 청년이 2년간 매월 12.5만원을 납입하면, 기업과 정부가 추가로 납입하여 만기 시 1,200만원을 수령할 수 있는 공제 사업입니다.", benefits: ["청년 납입 300만원", "기업 지원 400만원", "정부 지원 500만원 = 총 1,200만원"], amount: "만기 1,200만원", scope: "청년 자산형성 지원", duration: "2년", target: "만 15~34세 중소기업 재직 청년", method: "내일채움공제 홈페이지", eligibility: [{ label: "연령 (만 15세~34세)", value: "만 26세" }, { label: "중소기업 재직 여부", value: "구직 중" }] },
-  "7": { fullDesc: "취업을 희망하는 청년에게 맞춤형 취업지원 서비스와 생계 지원을 동시에 제공하는 고용안전망 사업입니다. 구직 활동을 지원하고 역량 강화 프로그램을 제공합니다.", benefits: ["구직촉진수당 월 50만원", "최대 6개월 지원", "취업지원 프로그램 연계"], amount: "구직촉진수당 월 50만원", scope: "취업지원 서비스 + 생계지원", duration: "최대 6개월", target: "만 15~69세 구직자", method: "고용24 / 고용센터 방문 신청", eligibility: [{ label: "연령 (만 15~69세)", value: "만 26세" }, { label: "취업 상태 (미취업)", value: "구직 중" }, { label: "소득 기준", value: "대상 포함" }, { label: "구직 활동 의사", value: "있음" }] },
-  "8": { fullDesc: "일하는 저소득 청년이 3년간 매월 10만원을 저축하면 정부가 매칭 지원금을 적립하여 목돈 마련을 지원합니다. 자립을 위한 자산 형성 지원 사업입니다.", benefits: ["청년 납입 월 10만원", "정부 매칭 월 최대 30만원", "3년 후 최대 1,440만원"], amount: "3년 만기 최대 1,440만원", scope: "저소득 청년 자산형성 지원", duration: "3년 적립 후 만기 수령", target: "만 19~34세 근로 저소득 청년", method: "복지로 / 읍면동 주민센터 신청", eligibility: [{ label: "연령 (만 19세~34세)", value: "만 26세" }, { label: "근로 여부 (근로자)", value: "구직 중" }, { label: "소득 (기준 중위 100% 이하)", value: "대상 포함" }, { label: "재산 기준", value: "기준 충족" }] },
-};
-
-// 정책 목록 조회
-// TODO: 백엔드 정책 API 구현 후 → return apiClient.get<Policy[]>('/policies')
-export async function fetchPolicies(): Promise<Policy[]> {
-  return MOCK_POLICIES;
-}
-
-// 정책 상세 조회
-// TODO: 백엔드 정책 API 구현 후 → return apiClient.get<PolicyDetail>(`/policies/${id}`)
-export async function fetchPolicyDetail(id: string): Promise<PolicyDetail | null> {
-  return MOCK_POLICY_DETAILS[id] ?? null;
-}
-
-// AI 추천 정책 조회 (홈 화면용 - 상위 3개)
-// TODO: 백엔드 추천 API 구현 후 → return apiClient.get<Policy[]>('/policies/recommended')
-export async function fetchRecommendedPolicies(): Promise<Policy[]> {
-  return MOCK_POLICIES.slice(0, 3);
-}
-
-// 북마크된 정책 조회 (마이페이지용)
-// TODO: 백엔드 북마크 API 구현 후 → return apiClient.get<Policy[]>('/policies/bookmarked')
-export async function fetchBookmarkedPolicies(): Promise<Policy[]> {
-  return MOCK_POLICIES.filter((p) => p.bookmarked);
-}
-
-// 정책 북마크 토글
-// TODO: 백엔드 북마크 API 구현 후 → return apiClient.post(`/policies/${id}/bookmark`, {})
-export async function togglePolicyBookmark(id: string): Promise<void> {
-  console.log(`[Mock] Toggle bookmark for policy ${id}`);
-}
+import {
+  MOCK_POLICIES,
+  MOCK_POLICY_DETAILS,
+  MOCK_SCRAPPED,
+} from './__mocks__/policies.mock';
 
 // MyPage용 스크랩 정책 (정책 기본정보 + 상세정보 합본)
 export interface ScrappedPolicy {
@@ -69,19 +21,50 @@ export interface ScrappedPolicy {
   method: string;
 }
 
-const MOCK_SCRAPPED: ScrappedPolicy[] = [
-  { id: "1", title: "청년 월세 특별지원", category: "주거", deadline: "D-14", support: "최대 240만원", org: "국토교통부", amount: "월 최대 20만원", scope: "월세 지원금 직접 지급", duration: "최대 12개월", target: "만 19~34세 무주택 청년", method: "온라인 신청 (복지로)" },
-  { id: "4", title: "역세권 청년주택 (SH)", category: "주거", deadline: "상시", support: "주거 지원", org: "서울주택도시공사", amount: "시세의 85% 이하 임대료", scope: "역세권 공공임대주택 공급", duration: "최대 6년 거주", target: "만 19~39세 무주택 청년·신혼부부", method: "SH청약센터 온라인 신청" },
-  { id: "9", title: "청년 전세임대주택", category: "주거", deadline: "D-30", support: "전세금 지원", org: "한국토지주택공사(LH)", amount: "전세금의 95% 융자 지원", scope: "전세주택 임차보증금 융자", duration: "최초 2년 (재계약 가능)", target: "만 19~39세 무주택 청년", method: "LH청약센터 온라인 신청" },
-  { id: "2", title: "청년 일자리 도약 장려금", category: "일자리", deadline: "D-7", support: "최대 1,200만원", org: "고용노동부", amount: "월 최대 80만원", scope: "중소기업 인건비 지원", duration: "최대 12개월", target: "취업애로 청년 신규 채용 중소기업", method: "고용24 온라인 신청" },
-  { id: "5", title: "청년 내일채움공제", category: "일자리", deadline: "D-45", support: "최대 1,200만원", org: "중소벤처기업부", amount: "만기 1,200만원 (정부+기업 지원)", scope: "장기재직 청년 자산형성 지원", duration: "2년 근속", target: "만 15~34세 중소기업 재직 청년", method: "내일채움공제 홈페이지 신청" },
-  { id: "7", title: "국민취업지원제도", category: "일자리", deadline: "상시", support: "최대 300만원", org: "고용노동부", amount: "구직촉진수당 월 50만원", scope: "취업지원 서비스 + 생계지원", duration: "최대 6개월", target: "만 15~69세 구직자", method: "고용24 / 고용센터 방문 신청" },
-  { id: "3", title: "청년 마음건강 바우처", category: "복지", deadline: "D-12", support: "최대 50만원", org: "보건복지부", amount: "회당 최대 5만원 (연 10회)", scope: "전문 심리상담 서비스 지원", duration: "연 1회 (10회기)", target: "만 19~34세 심리지원 필요 청년", method: "복지로 온라인 신청" },
-  { id: "8", title: "청년 내일저축계좌", category: "복지", deadline: "D-60", support: "최대 1,440만원", org: "보건복지부", amount: "3년 만기 최대 1,440만원", scope: "저소득 청년 자산형성 지원", duration: "3년 적립 후 만기 수령", target: "만 19~34세 근로 저소득 청년", method: "복지로 / 읍면동 주민센터 신청" },
-];
+// VITE_USE_MOCK_DATA=true 인 동안에는 mock 응답을, false면 실제 API를 호출한다.
+// 백엔드 API가 구현되면 .env에서 한 줄만 바꾸면 전체 코드가 실제 API로 전환된다.
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
-// 스크랩된 정책 목록 조회 (마이페이지용)
-// TODO: 백엔드 스크랩 API 구현 후 → return apiClient.get<ScrappedPolicy[]>('/policies/scrapped')
+// mock 응답에 약간의 지연을 주어 실제 네트워크 환경과 비슷하게 시뮬레이션
+const MOCK_LATENCY_MS = 150;
+const delay = <T>(value: T): Promise<T> =>
+  new Promise((resolve) => setTimeout(() => resolve(value), MOCK_LATENCY_MS));
+
+/** 정책 목록 조회 */
+export async function fetchPolicies(): Promise<Policy[]> {
+  if (USE_MOCK) return delay(MOCK_POLICIES);
+  return apiClient.get<Policy[]>('/policies');
+}
+
+/** 정책 상세 조회 */
+export async function fetchPolicyDetail(id: string): Promise<PolicyDetail | null> {
+  if (USE_MOCK) return delay(MOCK_POLICY_DETAILS[id] ?? null);
+  return apiClient.get<PolicyDetail>(`/policies/${id}`);
+}
+
+/** AI 추천 정책 조회 (홈 화면용) */
+export async function fetchRecommendedPolicies(): Promise<Policy[]> {
+  if (USE_MOCK) return delay(MOCK_POLICIES.slice(0, 3));
+  return apiClient.get<Policy[]>('/policies/recommended');
+}
+
+/** 북마크된 정책 조회 */
+export async function fetchBookmarkedPolicies(): Promise<Policy[]> {
+  if (USE_MOCK) return delay(MOCK_POLICIES.filter((p) => p.bookmarked));
+  return apiClient.get<Policy[]>('/policies/bookmarked');
+}
+
+/** 정책 북마크 토글 */
+export async function togglePolicyBookmark(id: string): Promise<void> {
+  if (USE_MOCK) {
+    console.info('[mock] toggle bookmark', id);
+    return;
+  }
+  await apiClient.post(`/policies/${id}/bookmark`);
+}
+
+/** 스크랩된 정책 목록 조회 (마이페이지용) */
 export async function fetchScrappedPolicies(): Promise<ScrappedPolicy[]> {
-  return MOCK_SCRAPPED;
+  if (USE_MOCK) return delay(MOCK_SCRAPPED);
+  return apiClient.get<ScrappedPolicy[]>('/policies/scrapped');
 }

@@ -1,8 +1,5 @@
 import { initiateGoogleLogin } from "../../api/auth";
-
-const P = ({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
-  <p className={className} style={{ fontFamily: "Pretendard, sans-serif", margin: 0, ...style }}>{children}</p>
-);
+import { P } from "./common/Typography";
 
 interface LoginPageProps {
   onNavigate: () => void;

@@ -4,11 +4,11 @@ import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.
 import imgHero from "figma:asset/2cb9345db44b046f538652abee8a7ed3e7d9b635.png";
 import { fetchChecklist, updateChecklistItem } from "../../api/checklist";
 import { fetchRecommendedPolicies } from "../../api/policies";
-import type { ChecklistItem, Policy, AuthUser } from "../../api/types";
-
-const P = ({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
-  <p className={className} style={{ fontFamily: "Pretendard, sans-serif", ...style }}>{children}</p>
-);
+import type { ChecklistItem } from "../../api/types";
+import { useAuth } from "../contexts/AuthContext";
+import { useQuery } from "../hooks/useQuery";
+import { P } from "./common/Typography";
+import { CATEGORIES, getCategoryStyle } from "../../constants/categories";
 
 const donutData = [
   { name: "Housing", value: 180, color: "#79f7ea" },
@@ -16,51 +16,47 @@ const donutData = [
   { name: "Welfare", value: 50, color: "rgba(255,255,255,0.3)" },
 ];
 
-const categoryColorMap: Record<string, string> = {
-  Housing: "#2563eb",
-  Jobs: "#16a34a",
-  Welfare: "#9333ea",
-};
-
-const categoryBgMap: Record<string, string> = {
-  Housing: "#eff6ff",
-  Jobs: "#f0fdf4",
-  Welfare: "#faf5ff",
-};
-
 interface HomePageProps {
   onNavigate: (page: string, id?: string) => void;
-  user: AuthUser | null;
 }
 
-export function HomePage({ onNavigate, user }: HomePageProps) {
+export function HomePage({ onNavigate }: HomePageProps) {
+  const { user } = useAuth();
+  const policiesQuery = useQuery(() => fetchRecommendedPolicies(), []);
+  const checklistQuery = useQuery(() => fetchChecklist(), []);
+
+  // 체크리스트 상태는 사용자가 토글하므로 query 결과를 로컬 상태로 동기화
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
-  const [recommendedPolicies, setRecommendedPolicies] = useState<Policy[]>([]);
+  useEffect(() => {
+    if (checklistQuery.data) setChecklist(checklistQuery.data);
+  }, [checklistQuery.data]);
+
   const [activeFilter, setActiveFilter] = useState("전체");
 
-  useEffect(() => {
-    fetchChecklist().then(setChecklist);
-    fetchRecommendedPolicies().then(setRecommendedPolicies);
-  }, []);
-
   const doneCount = checklist.filter((i) => i.done).length;
-  const progress = Math.round((doneCount / checklist.length) * 100);
+  const progress = checklist.length === 0 ? 0 : Math.round((doneCount / checklist.length) * 100);
 
   const toggleItem = (id: number) => {
     setChecklist((prev) => {
       const updated = prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
       const target = updated.find((item) => item.id === id);
-      if (target) updateChecklistItem(id, target.done);
+      if (target) {
+        updateChecklistItem(id, target.done).catch((err) =>
+          console.error("체크리스트 업데이트 실패:", err),
+        );
+      }
       return updated;
     });
   };
 
-  const filteredPolicies = activeFilter === "전체" ? recommendedPolicies : recommendedPolicies.filter((p) => {
-    if (activeFilter === "주거") return p.category === "Housing";
-    if (activeFilter === "일자리") return p.category === "Jobs";
-    if (activeFilter === "복지") return p.category === "Welfare";
-    return true;
-  });
+  const recommendedPolicies = policiesQuery.data ?? [];
+  const filteredPolicies =
+    activeFilter === "전체"
+      ? recommendedPolicies
+      : recommendedPolicies.filter((p) => {
+          const label = (CATEGORIES as Record<string, { label: string }>)[p.category]?.label;
+          return label === activeFilter;
+        });
 
   return (
     <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
@@ -220,16 +216,21 @@ export function HomePage({ onNavigate, user }: HomePageProps) {
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span
-                      className="px-2.5 py-1 rounded text-xs font-bold"
-                      style={{
-                        backgroundColor: categoryBgMap[policy.category] ?? "#f1f5f9",
-                        color: categoryColorMap[policy.category] ?? "#475569",
-                        fontFamily: "Pretendard, sans-serif",
-                      }}
-                    >
-                      {policy.categoryKr}
-                    </span>
+                    {(() => {
+                      const style = getCategoryStyle(policy.category);
+                      return (
+                        <span
+                          className="px-2.5 py-1 rounded text-xs font-bold"
+                          style={{
+                            backgroundColor: style.bg,
+                            color: style.text,
+                            fontFamily: "Pretendard, sans-serif",
+                          }}
+                        >
+                          {policy.categoryKr}
+                        </span>
+                      );
+                    })()}
                     <P style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 700, letterSpacing: "0.5px" }}>{policy.region}</P>
                   </div>
                   <P style={{ fontSize: 18, color: "#171d1c", fontWeight: 500, marginTop: 8, lineHeight: 1.5 }}>{policy.title}</P>
