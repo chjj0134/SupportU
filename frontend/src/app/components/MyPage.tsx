@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
-import { fetchScrappedPolicies, fetchPolicyDetail } from "../../api/policies";
 import type { ScrappedPolicy } from "../../api/policies";
-import type { PolicyDetail } from "../../api/types";
-import { useAuth } from "../contexts/AuthContext";
-import { useQuery } from "../hooks/useQuery";
+import { useScrappedPolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
+import { useAuthUser } from "../../api/queries/useAuthQueries";
+import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
 import { Spinner } from "./common/Spinner";
 import { ErrorMessage } from "./common/ErrorMessage";
@@ -135,12 +134,8 @@ function PolicyDetailSidePanel({
   onSchedule: (id: string) => void;
 }) {
   const [applied, setApplied] = useState(false);
-  const [detail, setDetail] = useState<PolicyDetail | null>(null);
+  const { data: detail } = usePolicyDetail(policyId);
   const policy = policies.find((p) => p.id === policyId);
-
-  useEffect(() => {
-    fetchPolicyDetail(policyId).then(setDetail);
-  }, [policyId]);
 
   if (!policy) return null;
 
@@ -507,13 +502,16 @@ interface MyPageProps {
 }
 
 export function MyPage({ onNavigate }: MyPageProps) {
-  const { user } = useAuth();
-  const scrappedQuery = useQuery(() => fetchScrappedPolicies(), []);
-  const scrappedPolicies = scrappedQuery.data ?? [];
+  const { data: user } = useAuthUser();
+  const { data: scrappedPolicies = [] } = useScrappedPolicies();
+
+  // 비교 선택은 Zustand store에서 가져와 페이지 이동 후에도 유지된다
+  const selected = useCompareStore((s) => s.selectedIds);
+  const toggleCompareSelection = useCompareStore((s) => s.toggle);
+  const clearCompareSelection = useCompareStore((s) => s.clear);
 
   const [mainTab, setMainTab] = useState<"scraps" | "management" | "profile">("scraps");
   const [subTab, setSubTab] = useState<"calendar" | "dashboard" | "policy">("dashboard");
-  const [selected, setSelected] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
   const [scheduledIds, setScheduledIds] = useState<Set<string>>(new Set());
   const [detailPolicyId, setDetailPolicyId] = useState<string | null>(null);
@@ -563,18 +561,18 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const policy = scrappedPolicies.find((p) => p.id === id)!;
+    const policy = scrappedPolicies.find((p) => p.id === id);
+    if (!policy) return;
 
-    if (selected.includes(id)) {
-      setSelected(selected.filter((s) => s !== id));
-    } else {
-      if (lockedCategory && policy.category !== lockedCategory) return;
-      if (selected.length >= 3) return;
-      setSelected([...selected, id]);
-    }
+    // 같은 카테고리만, 최대 3개까지 선택 가능 - 비즈니스 규칙을 가드로 표현
+    toggleCompareSelection(id, (current) => {
+      if (lockedCategory && policy.category !== lockedCategory) return false;
+      if (current.length >= 3) return false;
+      return true;
+    });
   };
 
-  const clearSelection = () => setSelected([]);
+  const clearSelection = () => clearCompareSelection();
 
   const selectedPolicies = scrappedPolicies.filter((p) => selected.includes(p.id));
 

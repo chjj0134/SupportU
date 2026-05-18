@@ -1,26 +1,20 @@
-import { useState, useEffect } from "react";
-import { fetchPolicies, fetchPolicyDetail, togglePolicyBookmark } from "../../api/policies";
-import type { Policy, PolicyDetail } from "../../api/types";
-import { useQuery } from "../hooks/useQuery";
+import { useState } from "react";
+import { toast } from "sonner";
+import type { Policy } from "../../api/types";
+import { usePolicies, usePolicyDetail, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
+import { usePolicyFiltersStore } from "../../stores/usePolicyFiltersStore";
 import { P } from "./common/Typography";
 import { Spinner } from "./common/Spinner";
 import { ErrorMessage } from "./common/ErrorMessage";
+import { getCategoryStyle, getDeadlineColor } from "../../constants/categories";
 
-
-
-const categoryColor: Record<string, { bg: string; text: string }> = {
-  Housing: { bg: "#eff6ff", text: "#2563eb" },
-  Jobs: { bg: "#f0fdf4", text: "#16a34a" },
-  Welfare: { bg: "#faf5ff", text: "#9333ea" },
+const categoryColor = {
+  Housing: { bg: getCategoryStyle("Housing").bg, text: getCategoryStyle("Housing").text },
+  Jobs: { bg: getCategoryStyle("Jobs").bg, text: getCategoryStyle("Jobs").text },
+  Welfare: { bg: getCategoryStyle("Welfare").bg, text: getCategoryStyle("Welfare").text },
 };
 
-const deadlineColor = (d: string) => {
-  if (d === "상시") return "#475569";
-  const n = parseInt(d.replace("D-", ""));
-  if (n <= 3) return "#ba1a1a";
-  if (n <= 7) return "#f97316";
-  return "#475569";
-};
+const deadlineColor = getDeadlineColor;
 
 /* ─────────────────────────── Policy Detail Side Panel ─────────────────────────── */
 
@@ -32,21 +26,18 @@ function PolicyDetailSidePanel({
   onClose: () => void;
 }) {
   const [applied, setApplied] = useState(false);
-  const [details, setDetails] = useState<PolicyDetail | null>(null);
-
-  useEffect(() => {
-    fetchPolicyDetail(policy.id).then(setDetails);
-  }, [policy.id]);
+  const { data: details } = usePolicyDetail(policy.id);
 
   const handleApply = () => {
     setApplied(true);
+    toast.success("신청이 완료되었습니다.");
     setTimeout(() => setApplied(false), 3000);
   };
 
   const categoryBg: Record<string, string> = {
-    Housing: "#eff6ff",
-    Jobs: "#f0fdf4",
-    Welfare: "#faf5ff",
+    Housing: getCategoryStyle("Housing").bg,
+    Jobs: getCategoryStyle("Jobs").bg,
+    Welfare: getCategoryStyle("Welfare").bg,
   };
 
   if (!details) return null;
@@ -224,21 +215,16 @@ interface PolicyListPageProps {
 }
 
 export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
-  const policiesQuery = useQuery(() => fetchPolicies(), []);
-  const policies = policiesQuery.data ?? [];
+  const { data: policies = [], isLoading, error, refetch } = usePolicies();
+  const toggleBookmarkMutation = useTogglePolicyBookmark();
+  // 필터/정렬은 Zustand store에서 가져와 페이지 간 이동 시에도 유지
+  const { category: activeFilter, setCategory: setActiveFilter, sort, setSort } = usePolicyFiltersStore();
 
-  const [activeFilter, setActiveFilter] = useState("전체");
-  const [sort, setSort] = useState("마감일 임박순");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
-  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
   const [detailPolicy, setDetailPolicy] = useState<Policy | null>(null);
 
-  // 정책 목록이 새로 들어오면 북마크 초기 상태를 동기화
-  useEffect(() => {
-    if (policiesQuery.data) {
-      setBookmarks(new Set(policiesQuery.data.filter((p) => p.bookmarked).map((p) => p.id)));
-    }
-  }, [policiesQuery.data]);
+  // 북마크 상태는 서버 데이터에서 직접 파생 - 더 이상 별도 state 불필요
+  const bookmarks = new Set(policies.filter((p) => p.bookmarked).map((p) => p.id));
 
   const filtered = policies.filter((p) => {
     if (activeFilter === "전체") return true;
@@ -269,15 +255,12 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
 
   const toggleBookmark = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setBookmarks((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
+    toggleBookmarkMutation.mutate(id, {
+      onError: () => toast.error("북마크 변경에 실패했습니다."),
     });
-    togglePolicyBookmark(id).catch((err) => console.error("북마크 토글 실패:", err));
   };
 
-  if (policiesQuery.isLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
         <Spinner label="정책을 불러오는 중..." />
@@ -285,10 +268,10 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
     );
   }
 
-  if (policiesQuery.error) {
+  if (error) {
     return (
       <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
-        <ErrorMessage error={policiesQuery.error} onRetry={policiesQuery.refetch} />
+        <ErrorMessage error={error} onRetry={refetch} />
       </div>
     );
   }
@@ -304,7 +287,7 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
 
         {/* Filters */}
         <div className="sticky top-16 z-10 flex items-center gap-2 py-3" style={{ backgroundColor: "rgba(245,251,248,0.95)", backdropFilter: "blur(6px)" }}>
-          {["전체", "주거", "일자리", "복지"].map((f) => (
+          {(["전체", "주거", "일자리", "복지"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setActiveFilter(f)}
@@ -350,7 +333,7 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
                   className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg overflow-hidden z-30"
                   style={{ border: "1px solid rgba(187,201,199,0.3)", minWidth: "160px" }}
                 >
-                  {["마감일 임박순", "최신순"].map((option) => (
+                  {(["마감일 임박순", "최신순"] as const).map((option) => (
                     <button
                       key={option}
                       className="w-full px-4 py-3 text-sm text-left transition-colors hover:bg-slate-50"

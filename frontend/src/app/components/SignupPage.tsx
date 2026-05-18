@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { saveProfile } from "../../api/profile";
+import { toast } from "sonner";
 import type { ProfileRequest } from "../../api/types";
+import { useSaveProfile } from "../../api/queries/useProfileQueries";
 import { P } from "./common/Typography";
 
 interface SignupPageProps {
@@ -18,8 +19,7 @@ const GENDER_API_VALUE: Record<string, string> = {
 
 export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
   const [currentStep, setCurrentStep] = useState(1);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const saveProfileMutation = useSaveProfile();
   const [formData, setFormData] = useState({
     userId: "",
     age: 25,
@@ -35,8 +35,16 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
   });
 
   const totalSteps = TOTAL_STEPS;
+  const isSubmitting = saveProfileMutation.isPending;
+  const submitError = saveProfileMutation.error?.message ?? null;
 
-  const submitProfile = async () => {
+  const handleNext = () => {
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     const profileData: ProfileRequest = {
       age: formData.age,
       gender: GENDER_API_VALUE[formData.gender] ?? "NONE",
@@ -50,27 +58,15 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
       preferredCategories: formData.interests,
     };
 
-    setIsSubmitting(true);
-    setSubmitError(null);
-    try {
-      await saveProfile(profileData);
-      onComplete();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "프로필 저장에 실패했습니다.";
-      setSubmitError(message);
-      console.error("프로필 저장 실패:", err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleNext = () => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } else {
-      submitProfile();
-    }
+    saveProfileMutation.mutate(profileData, {
+      onSuccess: () => {
+        toast.success("프로필이 저장되었습니다.");
+        onComplete();
+      },
+      onError: (err) => {
+        toast.error(err.message || "프로필 저장에 실패했습니다.");
+      },
+    });
   };
 
   const handlePrev = () => {

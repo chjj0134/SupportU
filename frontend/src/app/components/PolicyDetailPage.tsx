@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import imgHero from "figma:asset/2cb9345db44b046f538652abee8a7ed3e7d9b635.png";
-import { fetchPolicies, fetchPolicyDetail } from "../../api/policies";
-import { useQuery } from "../hooks/useQuery";
+import { usePolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
 import { P } from "./common/Typography";
 import { Spinner } from "./common/Spinner";
 import { ErrorMessage } from "./common/ErrorMessage";
@@ -12,20 +12,19 @@ interface PolicyDetailPageProps {
 }
 
 export function PolicyDetailPage({ policyId, onNavigate }: PolicyDetailPageProps) {
-  const policiesQuery = useQuery(() => fetchPolicies(), []);
-  const allPolicies = policiesQuery.data ?? [];
+  const { data: allPolicies = [], isLoading, error, refetch } = usePolicies();
 
   const [applied, setApplied] = useState(false);
   const [selectedId, setSelectedId] = useState(policyId);
   const [filterCategory, setFilterCategory] = useState("전체");
 
-  const detailQuery = useQuery(() => fetchPolicyDetail(selectedId), [selectedId]);
-  const detail = detailQuery.data;
+  const { data: detail } = usePolicyDetail(selectedId);
 
   const policy = allPolicies.find((p) => p.id === selectedId) ?? allPolicies[0];
 
   const handleApply = () => {
     setApplied(true);
+    toast.success("신청이 완료되었습니다.");
     setTimeout(() => setApplied(false), 3000);
   };
 
@@ -44,7 +43,7 @@ export function PolicyDetailPage({ policyId, onNavigate }: PolicyDetailPageProps
         return true;
       });
 
-  if (policiesQuery.isLoading || !policy) {
+  if (isLoading || !policy) {
     return (
       <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
         <Spinner label="정책 정보를 불러오는 중..." />
@@ -52,10 +51,10 @@ export function PolicyDetailPage({ policyId, onNavigate }: PolicyDetailPageProps
     );
   }
 
-  if (policiesQuery.error) {
+  if (error) {
     return (
       <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
-        <ErrorMessage error={policiesQuery.error} onRetry={policiesQuery.refetch} />
+        <ErrorMessage error={error} onRetry={refetch} />
       </div>
     );
   }

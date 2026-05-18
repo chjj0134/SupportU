@@ -1,12 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { toast } from "sonner";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import imgHero from "figma:asset/2cb9345db44b046f538652abee8a7ed3e7d9b635.png";
-import { fetchChecklist, updateChecklistItem } from "../../api/checklist";
-import { fetchRecommendedPolicies } from "../../api/policies";
-import type { ChecklistItem } from "../../api/types";
-import { useAuth } from "../contexts/AuthContext";
-import { useQuery } from "../hooks/useQuery";
+import { useAuthUser } from "../../api/queries/useAuthQueries";
+import { useRecommendedPolicies } from "../../api/queries/usePolicyQueries";
+import { useChecklist, useToggleChecklistItem } from "../../api/queries/useChecklistQueries";
 import { P } from "./common/Typography";
 import { CATEGORIES, getCategoryStyle } from "../../constants/categories";
 
@@ -21,35 +20,26 @@ interface HomePageProps {
 }
 
 export function HomePage({ onNavigate }: HomePageProps) {
-  const { user } = useAuth();
-  const policiesQuery = useQuery(() => fetchRecommendedPolicies(), []);
-  const checklistQuery = useQuery(() => fetchChecklist(), []);
-
-  // 체크리스트 상태는 사용자가 토글하므로 query 결과를 로컬 상태로 동기화
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
-  useEffect(() => {
-    if (checklistQuery.data) setChecklist(checklistQuery.data);
-  }, [checklistQuery.data]);
+  const { data: user } = useAuthUser();
+  const { data: recommendedPolicies = [] } = useRecommendedPolicies();
+  const { data: checklist = [] } = useChecklist();
+  const toggleMutation = useToggleChecklistItem();
 
   const [activeFilter, setActiveFilter] = useState("전체");
 
   const doneCount = checklist.filter((i) => i.done).length;
   const progress = checklist.length === 0 ? 0 : Math.round((doneCount / checklist.length) * 100);
 
-  const toggleItem = (id: number) => {
-    setChecklist((prev) => {
-      const updated = prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
-      const target = updated.find((item) => item.id === id);
-      if (target) {
-        updateChecklistItem(id, target.done).catch((err) =>
-          console.error("체크리스트 업데이트 실패:", err),
-        );
-      }
-      return updated;
-    });
+  // 체크리스트 토글: optimistic update + 에러 시 토스트 알림
+  const toggleItem = (id: number, currentDone: boolean) => {
+    toggleMutation.mutate(
+      { id, done: !currentDone },
+      {
+        onError: () => toast.error("체크리스트 업데이트에 실패했습니다."),
+      },
+    );
   };
 
-  const recommendedPolicies = policiesQuery.data ?? [];
   const filteredPolicies =
     activeFilter === "전체"
       ? recommendedPolicies
@@ -86,7 +76,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 <div
                   key={item.id}
                   className="flex items-center gap-4 p-3 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors"
-                  onClick={() => toggleItem(item.id)}
+                  onClick={() => toggleItem(item.id, item.done)}
                 >
                   <div
                     className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 transition-colors"
