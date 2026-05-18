@@ -79,7 +79,6 @@ def run_precompute(req: PrecomputeRequest):
 class ApplyRequest(BaseModel):
     uid: str
     policy_id: str
-    cid: int
 
 @app.post("/api/orchestrator/apply")
 def run_apply(req: ApplyRequest):
