@@ -49,3 +49,18 @@ Thumbs.db
 chromedriver.log
 tmp/
 temp/
+
+### Backend local config ###
+**/application-local.yml
+**/application-*.local.yml
+**/.env
+**/.env.*
+
+### Gradle generated files ###
+**/build/
+**/.gradle/
+
+### IntelliJ generated files ###
+.idea/
+*.iml
+out/
