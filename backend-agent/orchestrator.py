@@ -1,12 +1,17 @@
+from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from supabase import create_client, Client
 import os
 import json
 import re
+import time  # API Rate Limit 방어용
 from dotenv import load_dotenv
 
-from welfare_policy_final import workflow as detection_workflow
+# LangGraph 내 노드 구동을 위한 메시지 객체 임포트
+from langchain_core.messages import HumanMessage
+
+# eligibility_agent.py에서 컴파일된 'app' 그래프를 가져옵니다.
 from eligibility_agent import app as eligibility_workflow
 from filelist_agent import run_filelist_agent
 from effect_agent import app as effect_workflow
@@ -31,49 +36,150 @@ def extract_json(llm_output: str) -> dict:
         print("JSON 파싱 에러 발생! 원본 텍스트:", llm_output)
         return {}
 
-# --- API 1: 사전 추천 연산 (유저가 접속/수정했을 때 백그라운드 구동) ---
+def call_eligibility_agent_workflow(user_data: dict, policy_data: dict) -> dict:
+    """
+    eligibility_agent의 AgentState 규격과 Agent_Prompting.md 규칙에 맞춰
+    데이터를 XML 포맷으로 변환한 뒤, LangGraph 앱을 호출하는 통합 헬퍼 함수
+    """
+    # 구조화된 XML 포맷 빌드 (토큰 최적화 가이드 준수)
+    human_msg_content = f"""
+<user_profile>
+{json.dumps(user_data, ensure_ascii=False, indent=2)}
+</user_profile>
+
+<policy_criteria>
+{json.dumps(policy_data, ensure_ascii=False, indent=2)}
+</policy_criteria>
+"""
+    # eligibility_agent.py의 AgentState 변수명 구조 일치화
+    initial_state = {
+        "messages": [HumanMessage(content=human_msg_content)],
+        "user_id": user_data.get("uid", user_data.get("id", "")),
+        "policy_id": policy_data.get("policy_id", "")
+    }
+    
+    # LangGraph 서브그래프 가동
+    result = eligibility_workflow.invoke(initial_state)
+    llm_output = result["messages"][-1].content
+    
+    return extract_json(llm_output)
+
+
+# =====================================================================
+# API 1-A. [시나리오 1] 신규 유저 가입/프로필 수정 시 (사전 추천 연산)
+# =====================================================================
 class PrecomputeRequest(BaseModel):
     uid: str
 
-@app.post("/api/orchestrator/precompute")
-def run_precompute(req: PrecomputeRequest):
+@app.post("/api/orchestrator/precompute-eligibility")
+async def run_precompute_pipeline(req: PrecomputeRequest):
     uid = req.uid
-    
-    # 1. 유저 프로필 가져오기
-    profile_res = supabase.table("user_profiles").select("*").eq("uid", uid).execute()
-    if not profile_res.data:
-        raise HTTPException(status_code=404, detail="User profile not found")
-    user_profile = profile_res.data[0]
-
-    # 라우팅 (일자리/주거/복지 프롬프트 동적 주입)
-    # 여기서는 welfare_policy_final.py를 활용한다고 가정합니다.
-    # 카테고리별로 system_prompt를 갈아끼우면서 detection_workflow를 3번(또는 1번) 돌립니다.
-    # detected_policies = run_detection_agents(user_profile)
-    
-    # 가상의 탐지 결과 (테스트용)
-    detected_policies = ["POL-TEST-05", "V202600004"] 
-
-    results = []
-    for pid in detected_policies:
-        # 자격 요건 검증 에이전트 (eligibility_agent) 가동
-        # result = eligibility_workflow.invoke({"messages": [...], "user_id": uid, "policy_id": pid})
-        # parsed_result = extract_json(result["messages"][-1].content)
+    try:
+        # 1. 유저 프로필 조회
+        user_res = supabase.table('user_profiles').select('*').eq('uid', uid).execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail="유저 프로필을 찾을 수 없습니다.")
+        user_profile = user_res.data[0]
         
-        # 가상의 판독 결과 (테스트용)
-        parsed_result = {"is_eligible": True, "reason": "나이와 소득 조건 충족"} 
+        user_city = user_profile.get('city', '')
+        user_age = user_profile.get('age', 0)
 
-        # Supabase에 'pending' 상태로 적재 (유저 UI 노출용)
-        insert_data = {
-            "uid": uid,
-            "policy_id": pid,
-            "apply_status": "pending",
-            "apply_reason": parsed_result.get("reason", "검증 완료")
-        }
-        # cid 반환 확인
-        db_res = supabase.table("user_calendar_events").insert(insert_data).select("cid").execute()
-        results.append({"policy_id": pid, "cid": db_res.data[0]["cid"], "eligible": parsed_result.get("is_eligible")})
+        # 2. 하드 필터링 (지역으로 1차 컷, 백엔드 최적화)
+        policies_res = supabase.table('policies') \
+            .select('policy_id, title, summary, eligibility, amin, amax, region') \
+            .in_('region', [user_city, '전국']) \
+            .execute()
+        
+        eligible_records = []
 
-    return {"status": "success", "data": results}
+        # 3. 파이썬 나이 필터링 후 AI 에이전트 심사(test용으로 2개만)
+        for policy in policies_res.data[100:102]:
+            amin = int(float(policy.get('amin'))) if policy.get('amin') is not None else 0
+            amax = int(float(policy.get('amax'))) if policy.get('amax') is not None else 99
+            
+            if not (amin <= user_age <= amax):
+                continue # 나이 조건 미달 시 스킵 (비용 및 토큰 방어)
+
+            # 최적화된 에이전트 연동 함수 호출
+            ai_result = call_eligibility_agent_workflow(user_profile, policy)
+
+            if ai_result.get("is_eligible") == True:
+                eligible_records.append({
+                    "uid": uid,
+                    "policy_id": policy["policy_id"],
+                    "is_eligible": True,
+                    "unmet_conditions": ai_result.get("reason", "")  # 기존 unmet_conditions에 판단 근거 매핑
+                })
+            
+            # Claude 3.5 API 연속 호출 분당 횟수 제한(Rate Limit) 방어용 짧은 휴식
+            time.sleep(0.2)
+
+        # 4. DB 일괄 저장 (기존 내역 삭제 후 삽입 - 트랜잭션 보존)
+        if eligible_records:
+            supabase.table('eligibility_results').delete().eq('uid', uid).execute()
+            supabase.table('eligibility_results').insert(eligible_records).execute()
+
+        return {"status": "success", "inserted_count": len(eligible_records)}
+
+    except Exception as e:
+        print(f"Precompute Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =====================================================================
+# API 1-B. [시나리오 2] 역방향 매칭: 새벽 신규 정책 추가 시 (배치 처리)
+# =====================================================================
+class NewPoliciesRequest(BaseModel):
+    policy_ids: List[str]
+
+@app.post("/api/orchestrator/sync-new-policies")
+async def sync_new_policies_to_users(req: NewPoliciesRequest):
+    new_policy_ids = req.policy_ids
+    total_matched = 0
+    
+    try:
+        for pid in new_policy_ids:
+            policy_res = supabase.table('policies').select('policy_id, title, summary, eligibility, amin, amax, region').eq('policy_id', pid).execute()
+            if not policy_res.data:
+                continue
+            policy = policy_res.data[0]
+            
+            amin_clean = int(float(policy.get('amin'))) if policy.get('amin') is not None else 0
+            amax_clean = int(float(policy.get('amax'))) if policy.get('amax') is not None else 99
+
+            # 역방향 필터링: 정책의 지역/나이 조건에 맞는 유저만 효율적으로 선별 SELECT
+            target_users_res = supabase.table('user_profiles').select('*') \
+                            .eq('city', policy['region']) \
+                            .gte('age', amin_clean) \
+                            .lte('age', amax_clean).execute()
+            
+            matched_users_for_this_policy = []
+            
+            for user in target_users_res.data[:2]:  #test용으로 user 2명만 test
+                # 최적화된 에이전트 연동 함수 호출
+                ai_result = call_eligibility_agent_workflow(user, policy)
+                
+                if ai_result.get("is_eligible") == True:
+                    matched_users_for_this_policy.append({
+                        "uid": user["uid"],
+                        "policy_id": pid,
+                        "is_eligible": True,
+                        "unmet_conditions": ai_result.get("reason", "")
+                    })
+                
+                # API 안정적 트래픽 소모를 위한 지연 시간
+                time.sleep(0.2)
+            
+            # 합격한 유저들에게만 일괄 INSERT
+            if matched_users_for_this_policy:
+                supabase.table('eligibility_results').insert(matched_users_for_this_policy).execute()
+                total_matched += len(matched_users_for_this_policy)
+                
+        return {"status": "success", "message": f"총 {total_matched}건의 신규 배치 매칭 데이터 적재 완료"}
+
+    except Exception as e:
+        print(f"Sync New Policies Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- API 2: 실제 지원 처리 및 서류 추출 (유저가 '지금 지원' 클릭) ---
 class ApplyRequest(BaseModel):
