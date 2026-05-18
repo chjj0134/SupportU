@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from welfare_policy_final import workflow as detection_workflow
 from eligibility_agent import app as eligibility_workflow
-#from filelist_agent import ...
+from filelist_agent import run_filelist_agent
 from effect_agent import app as effect_workflow
 
 load_dotenv()
@@ -83,22 +83,45 @@ class ApplyRequest(BaseModel):
 
 @app.post("/api/orchestrator/apply")
 def run_apply(req: ApplyRequest):
-    # 지원 상태 업데이트 (pending -> APPLIED)
-    supabase.table("user_calendar_events").update({"apply_status": "APPLIED"}).eq("cid", req.cid).execute()
+    print(f"\n요청 수신 -> uid: {req.uid}, policy_id: {req.policy_id}")
     
-    # 정책 공고문 URL 가져오기
-    policy_res = supabase.table("policies").select("doc_url, policy_name").eq("policy_id", req.policy_id).execute()
-    if not policy_res.data:
-        raise HTTPException(status_code=404, detail="Policy not found")
-    
-    doc_url = policy_res.data[0].get("doc_url", "[https://youth.seoul.go.kr/](https://youth.seoul.go.kr/)...")
-    
+    # Supabase 실데이터 조회 및 엄격한 예외 검증
+    try:
+        profile_res = supabase.table("user_profiles").select("*").eq("uid", req.uid).execute()
+        policy_res = supabase.table("policies").select("detail_url, title").eq("policy_id", req.policy_id).execute()
+
+        # 구글 로그인 필수 조건: 프로필이 없으면 즉시 404
+        if not profile_res.data:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"User profile not found. Google login or profile setup required for uid: {req.uid}"
+            )
+            
+        if not policy_res.data:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Policy data not found for policy_id: {req.policy_id}"
+            )
+
+        # 데이터 매핑
+        user_profile = profile_res.data[0]
+        doc_url = policy_res.data[0].get("detail_url")
+        policy_name = policy_res.data[0].get("title") or policy_res.data[0].get("policy_name")
+        
+        print(f"[DB 조회 성공] 유저: {req.uid} | 정책명: {policy_name}")
+
+    except HTTPException as http_err:
+        # FastAPI가 지정된 HTTP 에러(404 등)를 그대로 클라이언트에 주도록 그대로 raise
+        raise http_err
+    except Exception as db_err:
+        print(f"[DB 시스템 오류] {db_err}")
+        raise HTTPException(status_code=500, detail=f"Supabase 연결 스펙 오류: {db_err}")
+
     # 서류 리스트업 에이전트 가동
-    # filelist_output = run_filelist_agent(doc_url, user_profile)
-    # parsed_docs = extract_json(filelist_output)
-    parsed_docs = {"required_documents": ["신분증"]} # 더미
+    filelist_output = run_filelist_agent(doc_url, json.dumps(user_profile))
+    parsed_docs = extract_json(filelist_output)
     
-    # document_drafts 테이블에 저장 (dcontent에 JSON 통째로 문자열화하여 저장)
+    # document_drafts 테이블에 최종 서류 데이터만 실시간 적재
     draft_data = {
         "uid": req.uid,
         "policy_id": req.policy_id,
@@ -106,12 +129,19 @@ def run_apply(req: ApplyRequest):
         "dcontent": json.dumps(parsed_docs, ensure_ascii=False),
         "draft_status": "generated"
     }
+    
+    # Supabase DB에 최종 결과 insert
     supabase.table("document_drafts").insert(draft_data).execute()
-    
-    # TODO: 구글 캘린더 및 푸시 알림 API 호출 (Mock)
-    print(f"[{req.uid}] 알림 및 구글 캘린더 연동 완료")
-    
-    return {"status": "success", "message": "지원 및 서류 리스트업 완료"}
+    print(f"[DB 적재 완료] '{policy_name}'의 AI 추출 서류 리스트가 document_drafts에 영구 저장되었습니다.")
+
+    return {
+        "status": "success",
+        "message": "AI 서류 리스트 수집 및 document_drafts 테이블 적재 완료",
+        "retrieved_policy_name": policy_name,
+        "preview_data": parsed_docs
+    }
+
+
 
 # --- API 3: 심야 배치 스케줄러용 (기대 효과 분석) ---
 class EffectRequest(BaseModel):

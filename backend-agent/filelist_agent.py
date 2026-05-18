@@ -58,60 +58,51 @@ Task: Extract and personalize required document checklists from Korean youth pol
 }
 """
 
-user_profile = """{
-    "uid": "USER-004",
-    "age": 38,
-    "gender": "남성",
-    "city": "서울",
-    "scity": "중랑구",
-    "education": "대학 졸업",
-    "employment": "재직",
-    "disability": False,
-    "income": 8000,      
-    "asset": "3억원 이하"
-}"""
-
-# 3. 정책 공고문 URL에서 텍스트 추출
-url = "https://youth.seoul.go.kr/infoData/plcyInfo/view.do?plcyBizId=V202600003&tab=001&key=2309150002&sc_detailAt=&pageIndex=1&orderBy=regYmd+desc&blueWorksYn=N&tabKind=002&sw="
-
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-}
-
-policy_notice = ""
-try:
-    response_web = requests.get(url, headers=headers)
-    response_web.raise_for_status()
-    soup = BeautifulSoup(response_web.text, 'html.parser')
+def run_filelist_agent(policy_url: str, user_profile_json: str) -> str:
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
     
-    # 텍스트만 추출하여 공백 정리
-    policy_notice = soup.get_text(separator='\n', strip=True)
-    print("[시스템] URL 텍스트 추출 완료.\n")
-except Exception as e:
-    print(f"[시스템 오류] URL을 읽어오는 중 에러가 발생했습니다: {e}")
-    policy_notice = "공고문 데이터를 불러오지 못했습니다."
+    # 공고문 크롤링 로직 (url 변수를 policy_url 로 교체)
+    try:
+        response_web = requests.get(policy_url, headers=headers)
+        response_web.raise_for_status()
+        soup = BeautifulSoup(response_web.text, 'html.parser')
+        
+        # 텍스트만 추출하여 공백 정리
+        policy_notice = soup.get_text(separator='\n', strip=True)
+        print(f"[시스템] {policy_url} 텍스트 추출 완료.")
+    except Exception as e:
+        print(f"[시스템 오류] URL을 읽어오는 중 에러가 발생했습니다: {e}")
+        policy_notice = "공고문 데이터를 불러오지 못했습니다."
 
-# 4. OpenAI API 호출
-response = client.chat.completions.create(
-    model="gpt-5-mini", 
-    messages=[
-        {
-            "role": "system",
-            "content": system_prompt
-        },
-        {
-            "role": "user",
-            "content": f"""
+    # OpenAI API 호출 (user_profile 변수를 user_profile_json 으로 교체)
+    try:
+        response = client.chat.completions.create(
+            model="gpt-5-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": f"""
 다음 사용자 프로필과 정책 공고문을 분석하세요.
 
 [사용자 프로필]
-{user_profile}
+{user_profile_json}
 
 [정책 공고문]
 {policy_notice}
 """
-        }
-    ]
-)
-
-print(response.choices[0].message.content)
+                }
+            ]
+        )
+        
+        # print 대신 return으로 오케스트레이터에게 JSON 문자열을 return
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        print(f"[AI 분석 오류] 에러가 발생했습니다: {e}")
+        return "{}" # 에러가 나더라도 서버가 터지지 않게 빈 JSON 반환
