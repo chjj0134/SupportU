@@ -1,0 +1,15 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: backend-main
+
+  profiles:
+    active: local
+
+  cloud:
+    config:
+      enabled: false
+      import-check:
+        enabled: false
