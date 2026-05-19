@@ -248,38 +248,187 @@ def run_apply(req: ApplyRequest):
 
 
 
-# --- API 3: 심야 배치 스케줄러용 (기대 효과 분석) ---
-class EffectRequest(BaseModel):
-    cid: int
+# --- API 3: 기대 효과 분석 ---
+class TotalBenefitRequest(BaseModel):
     uid: str
 
-@app.post("/api/orchestrator/batch_effect")
-def run_batch_effect(req: EffectRequest):
-    # 기대효과 에이전트 (effect_agent) 가동
-    # result = effect_workflow.invoke({"messages": [...], "user_id": req.uid})
-    # parsed_effect = extract_json(result["messages"][-1].content)
-    
-    parsed_effect = {
-        "total_cash_benefit": "320만원", 
-        "total_service_benefit": "상담 제공", 
-        "final_summary": "총 320만원과 상담 혜택"
-    }
 
-    # 정수형 변환 방어 로직 (금액 파싱)
-    cash_str = parsed_effect.get("total_cash_benefit", "0")
+@app.post("/api/orchestrator/total-benefit")
+def get_user_total_benefit(req: TotalBenefitRequest):
+
+    uid = req.uid
+
     try:
-        clean_amount = int(re.sub(r"[^\d]", "", cash_str))
-    except ValueError:
-        clean_amount = 0
+        # 1. 유저 캘린더 이벤트 조회
+        calendar_res = supabase.table(
+            'user_calendar_events'
+        ).select(
+            'cid, policy_id'
+        ).eq(
+            'uid',
+            uid
+        ).execute()
 
-    # effect 테이블에 저장 (cid 외래키 연결)
-    effect_data = {
-        "cid": req.cid,
-        "effect_summary": parsed_effect.get("final_summary"),
-        "is_quantifiable": clean_amount > 0,
-        "benefit_amount": clean_amount,
-        "benefit_item": parsed_effect.get("total_service_benefit")
-    }
-    supabase.table("effect").insert(effect_data).execute()
-    
-    return {"status": "success", "message": "기대효과 적재 완료"}
+        # 등록된 정책이 없는 경우
+        if not calendar_res.data:
+            return {
+                "status": "success",
+                "uid": uid,
+                "message": "등록된 정책 일정이 없습니다."
+            }
+
+        # 2. policy_id 리스트 추출 (중복 제거)
+        policy_ids = list(set([
+            item["policy_id"]
+            for item in calendar_res.data
+        ]))
+
+        # 3. 정책 상세 조회
+        policies_res = supabase.table(
+            'policies'
+        ).select(
+            '*'
+        ).in_(
+            'policy_id',
+            policy_ids
+        ).execute()
+
+        # 정책 데이터 없는 경우 방어
+        if not policies_res.data:
+            raise HTTPException(
+                status_code=404,
+                detail="정책 데이터를 찾을 수 없습니다."
+            )
+
+        # 4. effect_agent 전달용 데이터 구성
+        context_data = {
+            "user_id": uid,
+            "policies": policies_res.data
+        }
+
+        human_msg = f"""
+<user_data>
+{json.dumps(context_data, ensure_ascii=False)}
+</user_data>
+"""
+
+        # 5. effect_agent 호출
+        result = effect_workflow.invoke({
+            "messages": [
+                HumanMessage(content=human_msg)
+            ],
+            "user_id": uid
+        })
+
+        # 6. JSON 파싱
+        parsed_summary = extract_json(
+            result["messages"][-1].content
+        )
+
+        # 7. 텍스트 추출
+        cash_text = parsed_summary.get(
+            "total_cash_benefit",
+            "현금성 지원 없음"
+        )
+
+        service_text = parsed_summary.get(
+            "total_service_benefit",
+            "비금전적 혜택 없음"
+        )
+
+        final_summary = parsed_summary.get(
+            "final_summary",
+            "혜택 요약 생성 실패"
+        )
+
+        # 8. 금액 추출 로직 개선
+        # 예:
+        # "연 최대 30만원 ..."
+        # -> 300000
+
+        clean_cash = 0
+
+        # "30만원" 형태 우선 탐색
+        money_match = re.search(
+            r'(\d+(?:,\d+)?)\s*만원',
+            cash_text
+        )
+
+        if money_match:
+            amount = money_match.group(1).replace(',', '')
+            clean_cash = int(amount) * 10000
+
+        # "5천원" 형태 대응
+        elif "천원" in cash_text:
+
+            thousand_match = re.search(
+                r'(\d+(?:,\d+)?)\s*천원',
+                cash_text
+            )
+
+            if thousand_match:
+                amount = thousand_match.group(1).replace(',', '')
+                clean_cash = int(amount) * 1000
+
+        # 현금성 여부
+        is_cash = clean_cash > 0
+
+        # 9. effect 저장 데이터
+        effect_db_data = {
+
+            "uid": uid,
+
+            # 통합 혜택 row
+            "cid": None,
+            "policy_id": None,
+
+            "effect_summary": final_summary,
+
+            "is_quantifiable": is_cash,
+
+            "benefit_type":
+                "현금"
+                if is_cash
+                else "서비스",
+
+            # 전광판/통계용
+            "benefit_amount": clean_cash,
+
+            # UI 출력용
+            "benefit_item":
+                f"[현금성 혜택] {cash_text}\n"
+                f"[비금전적 혜택] {service_text}"
+        }
+
+        # 10. uid 기준 upsert
+        supabase.table("effect").upsert(
+            effect_db_data,
+            on_conflict="uid"
+        ).execute()
+
+        print(f"[DB 저장 완료] uid={uid}")
+
+        # 11. 응답 반환
+        return {
+
+            "status": "success",
+
+            "uid": uid,
+
+            "total_cash_benefit": cash_text,
+
+            "total_cash_benefit_amount": clean_cash,
+
+            "total_applied_count": len(policy_ids),
+
+            "summary": final_summary
+        }
+
+    except Exception as e:
+
+        print(f"Total Benefit Error: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
