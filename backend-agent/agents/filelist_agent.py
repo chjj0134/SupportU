@@ -1,97 +1,191 @@
 import os
 import requests
+
 from bs4 import BeautifulSoup
+
 from openai import OpenAI
+
 from dotenv import load_dotenv
 
-# 1. 환경 변수 로드
+
+# =========================================================
+# 환경 변수 로드
+# =========================================================
+
 load_dotenv()
 
-# 2. OpenAI 클라이언트 초기화 (API 키를 주입)
-api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key)
 
-system_prompt = """<Role>
-Expert policy analyzer agent.
-Task: Extract and personalize required document checklists from Korean youth policy documents based on user profiles. Do not evaluate eligibility.
+# =========================================================
+# OpenAI Client
+# =========================================================
+
+api_key = os.getenv(
+    "OPENAI_API_KEY"
+)
+
+client = OpenAI(
+    api_key=api_key
+)
+
+
+# =========================================================
+# System Prompt
+# =========================================================
+
+system_prompt = """
+<Role>
+Expert Korean policy document extraction agent.
+Task: Extract structured application document requirements from Korean youth policy texts.
 </Role>
 
 <Context>
-- Target: Youth (age 19-39) in Seoul/Gyeonggi.
-- Domain: Youth policies (Housing, Employment, Welfare).
-- Inputs:
-  1. Policy Document (Filtered core text).
-  2. User Profile: Name, DOB, Location, Contact, Employment status, Tenure, Income, NHIS payment, Household size, Housing type, Lease status, Move-in date, Assets (Finance, Vehicle).
+- Domain: Korean youth policies (Housing, Employment, Welfare).
+- Input:
+  1. Policy document text.
 </Context>
 
 <Tasks>
-1. Extract all document requirements from the policy text, including conditions, validity periods, and submission methods.
-2. Categorize documents by User Profile:
-   - Required: Mandatory for all applicants.
-   - Conditional (Applicable): Required specifically for this user. Write a 1-line reason.
-   - Conditional (Not Applicable): Not required for this user. Write a 1-line reason.
-   - Extract notes/cautions per document. Omit if none exist.
-3. Provide issuing authority, online URL, and validity period for Required and Applicable Conditional documents.
+1. Extract application document requirements from the policy text.
+2. Identify:
+   - document name
+   - whether it is mandatory
+   - concise submission guide
+   - official reference URL if explicitly provided
+3. Return concise and structured outputs only.
 </Tasks>
 
 <Rules>
-- Zero-fluff. Output facts only.
-- Do not add documents not mentioned in the policy text.
-- If a condition is uncertain, label as "사용자 확인 필요" (Requires User Confirmation) and state the necessary condition.
-- Strictly apply the policy's specific rules for document format and validity.
-- If multiple documents are accepted ("A or B"), prioritize the most accessible one based on the user profile.
-- Omit unverified URLs or authorities.
-- Do not output duplicate information.
-- Provide links only in the link section. Do not add extra guides or explanations.
-- Output EXACTLY in the provided OutputFormat.
-- Answer in Korean.
+- Output facts only.
+- Prioritize explicitly mentioned documents.
+- Conservative inference allowed only for strongly implied government documents.
+- Do not hallucinate unsupported documents.
+- Use concise Korean document names.
+- Avoid duplicates.
+- Keep doc_guide within 1 sentence.
+- Return ONLY raw JSON.
+- Never use markdown code fences.
+- Extract only applicant submission documents.
+- Never return the policy notice itself as a document.
+- Ignore menus, navigation text, and unrelated website content.
 </Rules>
 
-반드시 아래의 JSON 형식으로만 출력하세요. 마크다운(` ```json ` 등)이나 어떠한 사족도 붙이지 마세요.
+반드시 아래 JSON 형식만 출력하세요.
+
 {
-  "required_documents": ["신분증 사본", "주민등록등본"],
-  "conditional_documents": [
-    {"document": "임대차계약서", "reason": "월세 지원 신청자의 경우 필수"}
-  ],
-  "issuing_authority": "주민센터, 대법원 인터넷등기소",
-  "notes": "주민등록번호 뒷자리는 반드시 마스킹 처리할 것"
+  "documents": [
+    {
+      "doc_name": "주민등록등본",
+      "is_required": true,
+      "doc_guide": "모든 신청자 제출",
+      "doc_url": null
+    }
+  ]
 }
 """
 
-def run_filelist_agent(policy_url: str, user_profile_json: str) -> str:
+
+# =========================================================
+# Document Extraction Agent
+# =========================================================
+
+def run_document_extraction_agent(
+    policy_url: str
+) -> str:
+
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+        "User-Agent":
+            "Mozilla/5.0"
     }
-    
-    # 공고문 크롤링 로직 (url 변수를 policy_url 로 교체)
+
+    # =====================================================
+    # 정책 공고문 크롤링
+    # =====================================================
+
     try:
-        response_web = requests.get(policy_url, headers=headers)
+
+        response_web = requests.get(
+
+            policy_url,
+
+            headers=headers,
+
+            timeout=15
+        )
+
         response_web.raise_for_status()
-        soup = BeautifulSoup(response_web.text, 'html.parser')
-        
-        # 텍스트만 추출하여 공백 정리
-        policy_notice = soup.get_text(separator='\n', strip=True)
-        print(f"[시스템] {policy_url} 텍스트 추출 완료.")
+
+        soup = BeautifulSoup(
+
+            response_web.text,
+
+            "html.parser"
+        )
+
+        # 전체 텍스트 추출
+        policy_notice = soup.get_text(
+
+            separator="\n",
+
+            strip=True
+        )
+
+        # 너무 긴 HTML 방지
+        policy_notice = policy_notice[:25000]
+
+        print(
+            f"[SYSTEM] Policy text extracted: {policy_url}"
+        )
+
     except Exception as e:
-        print(f"[시스템 오류] URL을 읽어오는 중 에러가 발생했습니다: {e}")
-        policy_notice = "공고문 데이터를 불러오지 못했습니다."
 
-    # OpenAI API 호출 (user_profile 변수를 user_profile_json 으로 교체)
+        print(
+            f"[SYSTEM ERROR] Crawling failed: {e}"
+        )
+
+        return """
+{
+  "documents": []
+}
+"""
+
+    # =====================================================
+    # OpenAI 호출
+    # =====================================================
+
     try:
-        response = client.chat.completions.create(
-            model="gpt-5-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": f"""
-다음 사용자 프로필과 정책 공고문을 분석하세요.
 
-[사용자 프로필]
-{user_profile_json}
+        response = client.chat.completions.create(
+
+            model="gpt-5-mini",
+
+            messages=[
+
+                {
+
+                    "role":
+                        "system",
+
+                    "content":
+                        system_prompt
+                },
+
+                {
+
+                    "role":
+                        "user",
+
+                    "content":
+f"""
+당신은 실제 정책 신청자의
+제출서류 준비를 돕는 담당자입니다.
+
+아래 정책 공고문을 읽고,
+신청자가 실제로 제출해야 하는
+문서를 추출하세요.
+
+정책 설명이나 공고문 자체는
+문서로 반환하지 마세요.
 
 [정책 공고문]
 {policy_notice}
@@ -99,10 +193,21 @@ def run_filelist_agent(policy_url: str, user_profile_json: str) -> str:
                 }
             ]
         )
-        
-        # print 대신 return으로 오케스트레이터에게 JSON 문자열을 return
-        return response.choices[0].message.content
-        
+        print(policy_notice[:5000])
+        result = response.choices[
+            0
+        ].message.content
+
+        return result
+
     except Exception as e:
-        print(f"[AI 분석 오류] 에러가 발생했습니다: {e}")
-        return "{}" # 에러가 나더라도 서버가 터지지 않게 빈 JSON 반환
+
+        print(
+            f"[AI ERROR] {e}"
+        )
+
+        return """
+{
+  "documents": []
+}
+"""

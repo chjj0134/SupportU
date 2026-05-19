@@ -12,8 +12,8 @@ from graphs.eligibility_graph import (
     eligibility_graph
 )
 
-from graphs.apply_graph import (
-    apply_graph
+from graphs.document_graph import (
+    document_graph
 )
 
 from graphs.benefit_graph import (
@@ -111,38 +111,32 @@ def precompute_eligibility(
 # 2. APPLY GRAPH
 # =========================================================
 
-class ApplyRequest(BaseModel):
-
-    uid: str
+class DocumentRequest(
+    BaseModel
+):
 
     policy_id: str
 
 
 @app.post(
-    "/api/orchestrator/apply"
+    "/api/orchestrator/extract-policy-documents"
 )
-def apply_policy(
-    req: ApplyRequest
+def extract_policy_documents(
+    req: DocumentRequest
 ):
 
-    result = apply_graph.invoke({
+    result = document_graph.invoke({
 
-        "uid": req.uid,
+        "policy_id":
+            req.policy_id,
 
-        "policy_id": req.policy_id,
+        "policy_data":
+            None,
 
-        "user_profile": None,
-
-        "policy_data": None,
-
-        "document_result": None,
+        "extracted_documents": [],
 
         "error": None
     })
-
-    # -------------------------
-    # 에러 처리
-    # -------------------------
 
     if result.get("error"):
 
@@ -151,32 +145,32 @@ def apply_policy(
             "status": "error",
 
             "workflow":
-                "apply_graph",
+                "document_graph",
 
             "message":
                 result["error"]
         }
-
-    # -------------------------
-    # 성공 응답
-    # -------------------------
 
     return {
 
         "status": "success",
 
         "workflow":
-            "apply_graph",
-
-        "uid":
-            req.uid,
+            "document_graph",
 
         "policy_id":
             req.policy_id,
 
-        "document_result":
+        "document_count":
+            len(
+                result[
+                    "extracted_documents"
+                ]
+            ),
+
+        "documents":
             result[
-                "document_result"
+                "extracted_documents"
             ]
     }
 
