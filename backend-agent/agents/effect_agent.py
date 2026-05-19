@@ -33,12 +33,32 @@ Instructions:
 3. Provide a concise, professional summary.
 4. Output as pure JSON (no markdown).
 5. Answer in Korean.
+- Keep all generated benefit descriptions concise and UI-friendly.
+- Limit each benefit summary to within 1 short sentence.
+- Avoid excessive explanation or examples.
+- Do not include unnecessary details such as examples, procedures, or long conditions.
+- total_cash_benefit and total_service_benefit should each be under 100 characters if possible.
+- final_summary should be under 2 short sentences.
+- Focus only on the core support benefits.
+- total_cash_benefit should contain ONLY the final aggregated cash benefit amount.
+- Do not include per-session, monthly, or detailed sub-amounts.
+- Avoid listing breakdown amounts inside the same sentence.
+- total_cash_amount must be an integer number representing the total aggregated cash benefit in KRW.
+- Do not include commas or text in total_cash_amount.
+- total_cash_benefit should be a short natural language summary.
+- total_cash_benefit must not contain detailed breakdown amounts.
+- total_cash_amount must contain the FINAL aggregated total cash benefit only.
+- Do not include duplicated or breakdown amounts.
 
 Output JSON Schema:
 {
-  "total_cash_benefit": "Sum or description",
-  "total_service_benefit": "Integrated description",
-  "final_summary": "One-sentence comprehensive conclusion in KOREAN."
+  "total_cash_benefit": "Short description of aggregated cash benefits",
+
+  "total_cash_amount": 0,
+
+  "total_service_benefit": "Short description of non-cash benefits",
+
+  "final_summary": "Overall concise summary"
 }
 """
 

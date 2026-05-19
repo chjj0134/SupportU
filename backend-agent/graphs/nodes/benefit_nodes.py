@@ -55,7 +55,7 @@ def extract_json(llm_output: str):
 # -----------------------------------
 
 def load_benefit_context_node(state):
-
+    print("[NODE] load_benefit_context")
     uid = state["uid"]
 
     try:
@@ -131,7 +131,7 @@ def load_benefit_context_node(state):
 # -----------------------------------
 
 def effect_worker_node(state):
-
+    print("[NODE] effect_worker")
     if state.get("error"):
         return state
 
@@ -194,7 +194,7 @@ def effect_worker_node(state):
 # -----------------------------------
 
 def persist_benefit_node(state):
-
+    print("[NODE] persist_benefit")
     if state.get("error"):
         return state
 
@@ -221,49 +221,19 @@ def persist_benefit_node(state):
     # 금액 추출
     # -------------------------
 
-    clean_cash = 0
-
-    # 억 단위
-    billion_match = re.search(
-        r'(\\d+)\\s*억',
-        cash_text
+    cash_amount = summary.get(
+        "total_cash_amount",
+        0
     )
 
-    # 천만원 단위
-    thousand_match = re.search(
-        r'(\\d+)\\s*천\\s*만원',
-        cash_text
-    )
+    # 안전 처리
+    try:
 
-    # 만원 단위
-    ten_thousand_match = re.search(
-        r'(\\d+(?:,\\d+)?)\\s*만원',
-        cash_text
-    )
+        cash_amount = int(cash_amount)
 
-    if billion_match:
+    except:
 
-        clean_cash += (
-            int(billion_match.group(1))
-            * 100000000
-        )
-
-    if thousand_match:
-
-        clean_cash += (
-            int(thousand_match.group(1))
-            * 10000000
-        )
-
-    elif ten_thousand_match:
-
-        clean_cash += (
-            int(
-                ten_thousand_match.group(1)
-                .replace(',', '')
-            )
-            * 10000
-        )
+        cash_amount = 0
 
     # -------------------------
     # effect 저장 데이터
@@ -271,40 +241,35 @@ def persist_benefit_node(state):
 
     effect_db_data = {
 
-        "uid": uid,
+    "uid": uid,
 
-        # 통합 혜택 row
-        "cid": None,
-        "policy_id": None,
+    "cid": None,
+    "policy_id": None,
 
-        "effect_summary":
-            final_summary,
+    "effect_summary":
+        final_summary,
 
-        "is_quantifiable":
-            clean_cash > 0,
+    "is_quantifiable":
+        cash_amount > 0,
 
-        "benefit_type":
-            (
-                "현금"
-                if clean_cash > 0
-                else "서비스"
-            ),
+    "benefit_type":
+        (
+            "현금"
+            if cash_amount  > 0
+            else "서비스"
+        ),
 
-        "benefit_amount":
-            clean_cash,
+    # 숫자형 현금 혜택
+    "benefit_amount":
+        cash_amount ,
 
-        "benefit_item":
-            (
-                f"[현금성 혜택] "
-                f"{cash_text}\n"
+    # 비현금성 혜택만 저장
+    "benefit_item":
+        service_text[:255],
 
-                f"[비금전적 혜택] "
-                f"{service_text}"
-            ),
-
-        "updated_at":
-            datetime.utcnow().isoformat()
-    }
+    "updated_at":
+        datetime.utcnow().isoformat()
+}
 
     # uid 기준 upsert
     supabase.table(
