@@ -59,4 +59,4 @@ workflow.add_node("analyst", analyze_eligibility)
 workflow.add_edge(START, "analyst")
 workflow.add_edge("analyst", END)
 
-app = workflow.compile()
+eligibility_workflow = workflow.compile()

@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from db.supabase_client import supabase
 
 from agents.eligibility_agent import (
-    app as eligibility_workflow
+    eligibility_workflow
 )
 
 

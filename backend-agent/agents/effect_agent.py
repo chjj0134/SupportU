@@ -61,4 +61,4 @@ workflow.add_node("analyzer", analyze_benefits)
 workflow.add_edge(START, "analyzer")
 workflow.add_edge("analyzer", END)
 
-app = workflow.compile()
+effect_workflow = workflow.compile()
