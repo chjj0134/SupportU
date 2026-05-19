@@ -20,8 +20,9 @@ from graphs.benefit_graph import (
     benefit_graph
 )
 
-# 추후 추가 예정
-# from graphs.sync_graph import sync_graph
+from graphs.sync_graph import (
+    sync_graph
+)
 
 
 # -----------------------------------
@@ -275,10 +276,9 @@ def total_benefit(
 
 
 # =========================================================
-# 4. SYNC GRAPH (추후 확장용)
+# 4. SYNC GRAPH (정책 변경/신규 정책 등록 시)
 # =========================================================
 
-"""
 class SyncPolicyRequest(BaseModel):
     policy_id: str
 
@@ -331,4 +331,3 @@ def sync_new_policy(
                 ]
             )
     }
-"""
