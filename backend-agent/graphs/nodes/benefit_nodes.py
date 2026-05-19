@@ -1,0 +1,320 @@
+# graphs/nodes/benefit_nodes.py
+
+import json
+import re
+
+from datetime import datetime
+
+from langchain_core.messages import HumanMessage
+
+from db.supabase_client import supabase
+
+from agents.effect_agent import (
+    effect_workflow
+)
+
+
+# -----------------------------------
+# JSON 추출 함수
+# -----------------------------------
+
+def extract_json(llm_output: str):
+
+    try:
+        return json.loads(
+            llm_output.strip()
+        )
+
+    except Exception:
+
+        try:
+
+            match = re.search(
+                r"\{[\s\S]*\}",
+                llm_output
+            )
+
+            if match:
+
+                return json.loads(
+                    match.group(0)
+                )
+
+        except Exception:
+            pass
+
+    print("JSON 파싱 실패")
+    print(llm_output)
+
+    return {}
+
+
+# -----------------------------------
+# NODE 1
+# 사용자 상태 로드
+# -----------------------------------
+
+def load_benefit_context_node(state):
+
+    uid = state["uid"]
+
+    try:
+
+        # 사용자 정보
+        user_res = supabase.table(
+            "users"
+        ).select("*").eq(
+            "uid",
+            uid
+        ).single().execute()
+
+        # 캘린더 이벤트 조회
+        calendar_res = supabase.table(
+            "user_calendar_events"
+        ).select(
+            "cid, policy_id, apply_status"
+        ).eq(
+            "uid",
+            uid
+        ).execute()
+
+        # policy_id 추출
+        policy_ids = list(set([
+            item["policy_id"]
+            for item in calendar_res.data
+        ]))
+
+        # 정책 조회
+        policies_res = supabase.table(
+            "policies"
+        ).select("*").in_(
+            "policy_id",
+            policy_ids
+        ).execute()
+
+        # eligibility 결과 조회
+        eligibility_res = supabase.table(
+            "eligibility_results"
+        ).select("*").eq(
+            "uid",
+            uid
+        ).execute()
+
+        return {
+
+            **state,
+
+            "user_profile":
+                user_res.data,
+
+            "calendar_events":
+                calendar_res.data,
+
+            "policies":
+                policies_res.data,
+
+            "eligibility_results":
+                eligibility_res.data
+        }
+
+    except Exception as e:
+
+        return {
+            **state,
+            "error": str(e)
+        }
+
+
+# -----------------------------------
+# NODE 2
+# Effect Worker
+# -----------------------------------
+
+def effect_worker_node(state):
+
+    if state.get("error"):
+        return state
+
+    uid = state["uid"]
+
+    try:
+
+        context_data = {
+
+            "user_id": uid,
+
+            "user_profile":
+                state["user_profile"],
+
+            "calendar_events":
+                state["calendar_events"],
+
+            "policies":
+                state["policies"],
+
+            "eligibility_results":
+                state["eligibility_results"]
+        }
+
+        human_msg = f"""
+<user_data>
+{json.dumps(context_data, ensure_ascii=False)}
+</user_data>
+"""
+
+        result = effect_workflow.invoke({
+
+            "messages": [
+                HumanMessage(content=human_msg)
+            ],
+
+            "user_id": uid
+        })
+
+        parsed = extract_json(
+            result["messages"][-1].content
+        )
+
+        return {
+            **state,
+            "effect_summary": parsed
+        }
+
+    except Exception as e:
+
+        return {
+            **state,
+            "error": str(e)
+        }
+
+
+# -----------------------------------
+# NODE 3
+# Persistence Worker
+# -----------------------------------
+
+def persist_benefit_node(state):
+
+    if state.get("error"):
+        return state
+
+    uid = state["uid"]
+
+    summary = state["effect_summary"]
+
+    cash_text = summary.get(
+        "total_cash_benefit",
+        "현금성 지원 없음"
+    )
+
+    service_text = summary.get(
+        "total_service_benefit",
+        "비금전 혜택 없음"
+    )
+
+    final_summary = summary.get(
+        "final_summary",
+        "요약 생성 실패"
+    )
+
+    # -------------------------
+    # 금액 추출
+    # -------------------------
+
+    clean_cash = 0
+
+    # 억 단위
+    billion_match = re.search(
+        r'(\\d+)\\s*억',
+        cash_text
+    )
+
+    # 천만원 단위
+    thousand_match = re.search(
+        r'(\\d+)\\s*천\\s*만원',
+        cash_text
+    )
+
+    # 만원 단위
+    ten_thousand_match = re.search(
+        r'(\\d+(?:,\\d+)?)\\s*만원',
+        cash_text
+    )
+
+    if billion_match:
+
+        clean_cash += (
+            int(billion_match.group(1))
+            * 100000000
+        )
+
+    if thousand_match:
+
+        clean_cash += (
+            int(thousand_match.group(1))
+            * 10000000
+        )
+
+    elif ten_thousand_match:
+
+        clean_cash += (
+            int(
+                ten_thousand_match.group(1)
+                .replace(',', '')
+            )
+            * 10000
+        )
+
+    # -------------------------
+    # effect 저장 데이터
+    # -------------------------
+
+    effect_db_data = {
+
+        "uid": uid,
+
+        # 통합 혜택 row
+        "cid": None,
+        "policy_id": None,
+
+        "effect_summary":
+            final_summary,
+
+        "is_quantifiable":
+            clean_cash > 0,
+
+        "benefit_type":
+            (
+                "현금"
+                if clean_cash > 0
+                else "서비스"
+            ),
+
+        "benefit_amount":
+            clean_cash,
+
+        "benefit_item":
+            (
+                f"[현금성 혜택] "
+                f"{cash_text}\n"
+
+                f"[비금전적 혜택] "
+                f"{service_text}"
+            ),
+
+        "updated_at":
+            datetime.utcnow().isoformat()
+    }
+
+    # uid 기준 upsert
+    supabase.table(
+        "effect"
+    ).upsert(
+        effect_db_data,
+        on_conflict="uid"
+    ).execute()
+
+    return {
+        **state,
+        "db_saved": True
+    }
