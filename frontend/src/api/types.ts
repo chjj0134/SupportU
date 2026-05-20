@@ -69,3 +69,53 @@ export interface ChecklistItem {
   deadlineBg: string;
   done: boolean;
 }
+
+// --- Orchestrator Types ---
+
+export interface PrecomputeEligibilityRequest {
+  uid: string;
+}
+
+export interface DocumentExtractRequest {
+  policy_id: string;
+}
+
+export interface BenefitRequest {
+  uid: string;
+}
+
+export interface SyncPolicyRequest {
+  policy_id: string;
+}
+
+// 응답 타입 (FastAPI 리턴값 기준)
+export interface OrchestratorBaseResponse {
+  status: 'success' | 'error';
+  workflow: string;
+  message?: string;
+}
+
+export interface PrecomputeEligibilityResponse extends OrchestratorBaseResponse {
+  uid?: string;
+  eligible_count?: number;
+  result?: any[]; // 필요에 따라 세부 타입으로 변경
+}
+
+export interface DocumentExtractResponse extends OrchestratorBaseResponse {
+  policy_id?: string;
+  document_count?: number;
+  documents?: any[];
+}
+
+export interface BenefitResponse extends OrchestratorBaseResponse {
+  uid?: string;
+  total_cash_benefit?: string | number;
+  total_service_benefit?: string | number;
+  final_summary?: string;
+  db_saved?: boolean;
+}
+
+export interface SyncPolicyResponse extends OrchestratorBaseResponse {
+  policy_id?: string;
+  matched_count?: number;
+}
