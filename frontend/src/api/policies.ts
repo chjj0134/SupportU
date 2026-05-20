@@ -28,7 +28,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 // mock 응답에 약간의 지연을 주어 실제 네트워크 환경과 비슷하게 시뮬레이션
 const MOCK_LATENCY_MS = 150;
 const delay = <T>(value: T): Promise<T> =>
-  new Promise((resolve) => setTimeout(() => resolve(value), MOCK_LATENCY_MS));
+    new Promise((resolve) => setTimeout(() => resolve(value), MOCK_LATENCY_MS));
 
 /** 정책 목록 조회 */
 export async function fetchPolicies(): Promise<Policy[]> {
@@ -54,12 +54,24 @@ export async function fetchBookmarkedPolicies(): Promise<Policy[]> {
   return apiClient.get<Policy[]>('/policies/bookmarked');
 }
 
-/** 정책 북마크 토글 */
-export async function togglePolicyBookmark(id: string): Promise<void> {
+/**
+ * 정책 북마크 상태 변경.
+ * 현재 북마크된 상태면 DELETE, 아니면 POST.
+ */
+export async function togglePolicyBookmark(
+    id: string,
+    bookmarked: boolean,
+): Promise<void> {
   if (USE_MOCK) {
-    console.info('[mock] toggle bookmark', id);
+    console.info('[mock] toggle bookmark', id, bookmarked);
     return;
   }
+
+  if (bookmarked) {
+    await apiClient.delete(`/policies/${id}/bookmark`);
+    return;
+  }
+
   await apiClient.post(`/policies/${id}/bookmark`);
 }
 

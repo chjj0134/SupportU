@@ -19,6 +19,10 @@ public record PolicyResponse(
         boolean bookmarked
 ) {
     public static PolicyResponse from(Policy policy) {
+        return from(policy, false);
+    }
+
+    public static PolicyResponse from(Policy policy, boolean bookmarked) {
         return new PolicyResponse(
                 policy.getPolicyId(),
                 firstNonBlank(policy.getTitle(), policy.getPolicyTitle()),
@@ -30,7 +34,7 @@ public record PolicyResponse(
                 firstNonBlank(policy.getSummary(), "상세 설명 확인 필요"),
                 85,
                 firstNonBlank(policy.getRegion(), "전국"),
-                false
+                bookmarked
         );
     }
 
@@ -38,6 +42,7 @@ public record PolicyResponse(
         if (value == null || value.isBlank()) {
             return fallback;
         }
+
         return value;
     }
 
@@ -52,6 +57,10 @@ public record PolicyResponse(
             return "마감";
         }
 
+        if (days == 0) {
+            return "D-day";
+        }
+
         return "D-" + days;
     }
 
@@ -61,9 +70,11 @@ public record PolicyResponse(
         if (value.contains("주거")) {
             return "Housing";
         }
+
         if (value.contains("일자리") || value.contains("취업") || value.contains("창업")) {
             return "Jobs";
         }
+
         if (value.contains("복지") || value.contains("금융") || value.contains("건강")) {
             return "Welfare";
         }
@@ -77,9 +88,11 @@ public record PolicyResponse(
         if (value.contains("주거")) {
             return "주거";
         }
+
         if (value.contains("일자리") || value.contains("취업") || value.contains("창업")) {
             return "일자리";
         }
+
         if (value.contains("복지") || value.contains("금융") || value.contains("건강")) {
             return "복지";
         }
