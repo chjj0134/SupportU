@@ -11,5 +11,5 @@ public record ProfileRequest(
         Long incomeInteger,
         String asset,
         String[] preferredCategories
-y
+) {
 }
