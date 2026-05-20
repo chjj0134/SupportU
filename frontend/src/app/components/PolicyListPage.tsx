@@ -255,9 +255,16 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
 
   const toggleBookmark = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    toggleBookmarkMutation.mutate(id, {
-      onError: () => toast.error("북마크 변경에 실패했습니다."),
-    });
+
+    toggleBookmarkMutation.mutate(
+        {
+          id,
+          bookmarked: bookmarks.has(id),
+        },
+        {
+          onError: () => toast.error("북마크 변경에 실패했습니다."),
+        },
+    );
   };
 
   if (isLoading) {

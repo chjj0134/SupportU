@@ -10,6 +10,17 @@ import {
 import { queryKeys } from '../../lib/queryClient';
 import type { Policy } from '../types';
 
+type ToggleBookmarkVariables = {
+  id: string;
+  bookmarked: boolean;
+};
+
+type ToggleBookmarkContext = {
+  previousList?: Policy[];
+  previousRecommended?: Policy[];
+  previousBookmarked?: Policy[];
+};
+
 export function usePolicies() {
   return useQuery({
     queryKey: queryKeys.policies.list(),
@@ -53,31 +64,87 @@ export function useScrappedPolicies() {
  */
 export function useTogglePolicyBookmark() {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, string, { previousList?: Policy[] }>({
-    mutationFn: togglePolicyBookmark,
-    onMutate: async (policyId) => {
-      // 진행 중인 쿼리를 취소해 race condition 방지
-      await queryClient.cancelQueries({ queryKey: queryKeys.policies.list() });
+
+  return useMutation<void, Error, ToggleBookmarkVariables, ToggleBookmarkContext>({
+    mutationFn: ({ id, bookmarked }) => togglePolicyBookmark(id, bookmarked),
+
+    onMutate: async ({ id }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.policies.list() }),
+        queryClient.cancelQueries({ queryKey: queryKeys.policies.recommended() }),
+        queryClient.cancelQueries({ queryKey: queryKeys.policies.bookmarked() }),
+        queryClient.cancelQueries({ queryKey: queryKeys.policies.scrapped() }),
+      ]);
+
       const previousList = queryClient.getQueryData<Policy[]>(queryKeys.policies.list());
+      const previousRecommended = queryClient.getQueryData<Policy[]>(
+          queryKeys.policies.recommended(),
+      );
+      const previousBookmarked = queryClient.getQueryData<Policy[]>(
+          queryKeys.policies.bookmarked(),
+      );
+
+      const toggleInList = (items?: Policy[]) =>
+          items?.map((policy) =>
+              policy.id === id
+                  ? { ...policy, bookmarked: !policy.bookmarked }
+                  : policy,
+          );
+
       if (previousList) {
         queryClient.setQueryData<Policy[]>(
-          queryKeys.policies.list(),
-          previousList.map((p) =>
-            p.id === policyId ? { ...p, bookmarked: !p.bookmarked } : p,
-          ),
+            queryKeys.policies.list(),
+            toggleInList(previousList),
         );
       }
-      return { previousList };
+
+      if (previousRecommended) {
+        queryClient.setQueryData<Policy[]>(
+            queryKeys.policies.recommended(),
+            toggleInList(previousRecommended),
+        );
+      }
+
+      if (previousBookmarked) {
+        queryClient.setQueryData<Policy[]>(
+            queryKeys.policies.bookmarked(),
+            previousBookmarked.filter((policy) => policy.id !== id),
+        );
+      }
+
+      return {
+        previousList,
+        previousRecommended,
+        previousBookmarked,
+      };
     },
-    onError: (_err, _policyId, context) => {
-      // 실패 시 이전 상태로 롤백
+
+    onError: (_err, _variables, context) => {
       if (context?.previousList) {
         queryClient.setQueryData(queryKeys.policies.list(), context.previousList);
       }
+
+      if (context?.previousRecommended) {
+        queryClient.setQueryData(
+            queryKeys.policies.recommended(),
+            context.previousRecommended,
+        );
+      }
+
+      if (context?.previousBookmarked) {
+        queryClient.setQueryData(
+            queryKeys.policies.bookmarked(),
+            context.previousBookmarked,
+        );
+      }
     },
+
     onSettled: () => {
-      // 서버 상태로 최종 동기화
       queryClient.invalidateQueries({ queryKey: queryKeys.policies.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.policies.list() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.policies.recommended() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.policies.bookmarked() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.policies.scrapped() });
     },
   });
 }
