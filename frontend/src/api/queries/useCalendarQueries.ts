@@ -10,6 +10,7 @@ export function useCalendarEvents() {
     return useQuery({
         queryKey: queryKeys.calendar.events(),
         queryFn: fetchCalendarEvents,
+        retry: false,
     });
 }
 

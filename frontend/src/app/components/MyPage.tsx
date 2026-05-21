@@ -4,6 +4,8 @@ import type { ScrappedPolicy } from "../../api/policies";
 import type { CalendarEvent } from "../../api/calendar";
 import { useScrappedPolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
+import { useProfile } from "../../api/queries/useProfileQueries";
+import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
 import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
@@ -36,12 +38,6 @@ const funnelData = [
   { label: "일정 등록", value: 12, color: "#00897b" },
   { label: "지원 완료", value: 5, color: "#00695c" },
   { label: "수혜 완료", value: 2, color: "#004d40" },
-];
-
-const cashBenefits = [
-  { label: "주거 (월세지원 등)", amount: "2,400,000원", pct: 70, color: "#006a63" },
-  { label: "취업 (장려금 등)", amount: "1,020,000원", pct: 30, color: "#3b6661" },
-  { label: "복지 (포인트 등)", amount: "0원", pct: 0, color: "#8e4e11" },
 ];
 
 const managedPolicies = [
@@ -544,6 +540,9 @@ interface MyPageProps {
 
 export function MyPage({ onNavigate }: MyPageProps) {
   const { data: user } = useAuthUser();
+  const { data: profile } = useProfile();
+  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
+  const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
   const { data: scrappedPolicies = [] } = useScrappedPolicies();
   const { data: calendarEvents = [] } = useCalendarEvents();
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
@@ -573,6 +572,11 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const firstDayOfMonth = new Date(calendarYear, calendarMonth - 1, 1).getDay();
   const calendarDays = buildCalendarDays(calendarEvents, calendarYear, calendarMonth);
   const registeredPolicyIds = new Set(calendarEvents.map((event) => event.policyId));
+
+  const totalBenefitAmount = benefitSummary?.totalBenefitAmount ?? 0;
+  const totalBenefitManwon = Math.floor(totalBenefitAmount / 10000);
+  const formattedTotalBenefitAmount = totalBenefitAmount.toLocaleString();
+  const serviceBenefits = benefitSummary?.serviceBenefits ?? [];
 
   const handleSchedulePolicy = (id: string) => {
     createCalendarEventMutation.mutate(id, {
@@ -660,7 +664,11 @@ export function MyPage({ onNavigate }: MyPageProps) {
               <P style={{ fontSize: 14, color: "#64748b" }}>만 26세 · 서울 강남구 · 구직 중</P>
             </div>
             <div className="ml-auto flex gap-6">
-              {[{ label: "스크랩", value: "28" }, { label: "지원 완료", value: "5" }, { label: "수혜 금액", value: "342만원" }].map((stat) => (
+              {[
+                { label: "스크랩", value: "28" },
+                { label: "지원 완료", value: "5" },
+                { label: "수혜 금액", value: isBenefitSummaryLoading ? "..." : `${totalBenefitManwon.toLocaleString()}만원` },
+              ].map((stat) => (
                   <div key={stat.label} className="text-center">
                     <P style={{ fontSize: 18, fontWeight: 700, color: "#006a63" }}>{stat.value}</P>
                     <P style={{ fontSize: 12, color: "#64748b" }}>{stat.label}</P>
@@ -928,7 +936,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
                             <P style={{ fontSize: 14, fontWeight: 700, color: "#3c4947", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 16 }}>현금성 혜택 현황</P>
                             <div className="flex flex-col items-center gap-3">
                               <div className="flex items-baseline gap-2">
-                                <P style={{ fontSize: 56, fontWeight: 800, color: "#006a63", lineHeight: 1 }}>3,420,000</P>
+                                <P style={{ fontSize: 56, fontWeight: 800, color: "#006a63", lineHeight: 1 }}>
+                                  {isBenefitSummaryLoading ? "..." : formattedTotalBenefitAmount}
+                                </P>
                                 <P style={{ fontSize: 24, fontWeight: 700, color: "#3c4947" }}>원</P>
                               </div>
                               <P style={{ fontSize: 14, color: "#64748b", textAlign: "center" }}>
@@ -946,9 +956,24 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                     border: "1px solid rgba(0,106,99,0.15)"
                                   }}
                               >
-                                <P style={{ fontSize: 15, color: "#171d1c", lineHeight: 1.8, fontWeight: 400 }}>
-                                  면접 정장 대여 <span style={{ fontWeight: 700, color: "#006a63" }}>10회</span> 및 심리상담 <span style={{ fontWeight: 700, color: "#006a63" }}>8회</span> 제공
-                                </P>
+                                {serviceBenefits.length > 0 ? (
+                                    <div className="flex flex-col gap-3">
+                                      {serviceBenefits.map((benefit, index) => (
+                                          <div key={`${benefit.benefitItem ?? "benefit"}-${index}`} className="flex flex-col gap-1">
+                                            <P style={{ fontSize: 15, color: "#171d1c", lineHeight: 1.6, fontWeight: 700 }}>
+                                              {benefit.benefitItem ?? benefit.benefitType ?? "서비스 혜택"}
+                                            </P>
+                                            <P style={{ fontSize: 14, color: "#3c4947", lineHeight: 1.6, fontWeight: 400 }}>
+                                              {benefit.effectSummary ?? "상세 혜택 정보가 집계되었습니다."}
+                                            </P>
+                                          </div>
+                                      ))}
+                                    </div>
+                                ) : (
+                                    <P style={{ fontSize: 15, color: "#64748b", lineHeight: 1.8, fontWeight: 400 }}>
+                                      아직 집계된 물품 및 서비스 혜택이 없습니다.
+                                    </P>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1082,6 +1107,10 @@ export function MyPage({ onNavigate }: MyPageProps) {
                               ...prev,
                               [selectedPolicy.id]: step,
                             }));
+
+                            if ((step === 1 || step === 3) && step !== currentStep) {
+                              triggerTotalBenefitMutation.mutate();
+                            }
                           };
 
                           return (
@@ -1253,384 +1282,12 @@ export function MyPage({ onNavigate }: MyPageProps) {
           {mainTab === "profile" && (
               <div className="max-w-4xl mx-auto">
                 <div className="rounded-2xl p-8 flex flex-col gap-8" style={{ backgroundColor: "white", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-                  {/* Section: 기본 정보 */}
-                  <div>
-                    <div className="flex items-center gap-2 pb-4 mb-6 border-b" style={{ borderColor: "#e9efed" }}>
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <circle cx="10" cy="7" r="4" stroke="#006a63" strokeWidth="1.5"/>
-                        <path d="M4 18C4 14.6863 6.68629 12 10 12C13.3137 12 16 14.6863 16 18" stroke="#006a63" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
-                      <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>기본 정보</P>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-                      {/* 유저 아이디 */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>유저 아이디</P>
-                        <input
-                            type="text"
-                            value={profileData.userId}
-                            onChange={(e) => setProfileData({ ...profileData, userId: e.target.value })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
-                        />
-                      </div>
-
-                      {/* 나이 */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>나이</P>
-                        <input
-                            type="number"
-                            value={profileData.age}
-                            onChange={(e) => setProfileData({ ...profileData, age: parseInt(e.target.value) })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
-                        />
-                      </div>
-
-                      {/* 성별 */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>성별</P>
-                        <select
-                            value={profileData.gender}
-                            onChange={(e) => setProfileData({ ...profileData, gender: e.target.value })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                        >
-                          <option value="남성">남성</option>
-                          <option value="여성">여성</option>
-                          <option value="기타">기타</option>
-                        </select>
-                      </div>
-
-                      {/* 거주지 (시/도) */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>거주지 (시/도)</P>
-                        <select
-                            value={profileData.region}
-                            onChange={(e) => setProfileData({ ...profileData, region: e.target.value })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                        >
-                          <option value="서울특별시">서울특별시</option>
-                          <option value="경기도">경기도</option>
-                          <option value="인천광역시">인천광역시</option>
-                          <option value="부산광역시">부산광역시</option>
-                          <option value="대구광역시">대구광역시</option>
-                        </select>
-                      </div>
-
-                      {/* 거주지 (구/군) */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>거주지 (구/군)</P>
-                        <input
-                            type="text"
-                            value={profileData.district}
-                            onChange={(e) => setProfileData({ ...profileData, district: e.target.value })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
-                            placeholder="예: 강남구"
-                        />
-                      </div>
-
-                      {/* 최종 학력 */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>최종 학력</P>
-                        <select
-                            value={profileData.education}
-                            onChange={(e) => setProfileData({ ...profileData, education: e.target.value })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                        >
-                          <option value="고등학교 졸업">고등학교 졸업</option>
-                          <option value="대학교 재학">대학교 재학</option>
-                          <option value="대학교 졸업">대학교 졸업</option>
-                          <option value="대학원 재학">대학원 재학</option>
-                          <option value="대학원 졸업">대학원 졸업</option>
-                        </select>
-                      </div>
-
-                      {/* 취업 상태 */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>취업 상태</P>
-                        <select
-                            value={profileData.employmentStatus}
-                            onChange={(e) => setProfileData({ ...profileData, employmentStatus: e.target.value })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                        >
-                          <option value="구직 중">구직 중</option>
-                          <option value="재직 중">재직 중</option>
-                          <option value="자영업">자영업</option>
-                          <option value="프리랜서">프리랜서</option>
-                          <option value="학생">학생</option>
-                        </select>
-                      </div>
-
-                      {/* 연소득 */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>연소득 (만원)</P>
-                        <input
-                            type="number"
-                            value={profileData.annualIncome}
-                            onChange={(e) => setProfileData({ ...profileData, annualIncome: parseInt(e.target.value) })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
-                            placeholder="예: 2500"
-                        />
-                      </div>
-
-                      {/* 자산현황 */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>자산현황</P>
-                        <select
-                            value={profileData.assets}
-                            onChange={(e) => setProfileData({ ...profileData, assets: e.target.value })}
-                            disabled={!isEditingProfile}
-                            className="w-full px-4 py-3 rounded-lg border"
-                            style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                        >
-                          <option value="5,000만원 미만">5,000만원 미만</option>
-                          <option value="5,000만원 이상 ~ 1억원 미만">5,000만원 이상 ~ 1억원 미만</option>
-                          <option value="1억원 이상 ~ 3억원 미만">1억원 이상 ~ 3억원 미만</option>
-                          <option value="3억원 이상">3억원 이상</option>
-                        </select>
-                      </div>
-
-                      {/* 프로필 생성 일시 */}
-                      <div>
-                        <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>프로필 생성 일시</P>
-                        <div className="w-full px-4 py-3 rounded-lg border" style={{ backgroundColor: "#f8fafc", borderColor: "#e9efed" }}>
-                          <P style={{ fontSize: 15, color: "#64748b" }}>{profileData.createdAt}</P>
-                        </div>
-                      </div>
-
-                      {/* 장애 유무 - Full width toggle */}
-                      <div className="col-span-2">
-                        <div className="flex items-center justify-between p-4 rounded-lg border" style={{ borderColor: "#e9efed", backgroundColor: isEditingProfile ? "white" : "#f8fafc" }}>
-                          <P style={{ fontSize: 15, color: "#171d1c", fontWeight: 500 }}>장애 유무</P>
-                          <button
-                              onClick={() => isEditingProfile && setProfileData({ ...profileData, hasDisability: !profileData.hasDisability })}
-                              disabled={!isEditingProfile}
-                              className="relative w-12 h-6 rounded-full transition-all"
-                              style={{
-                                backgroundColor: profileData.hasDisability ? "#006a63" : "#cbd5e1",
-                                border: "none",
-                                cursor: isEditingProfile ? "pointer" : "not-allowed",
-                                opacity: isEditingProfile ? 1 : 0.6,
-                              }}
-                          >
-                            <div
-                                className="absolute w-5 h-5 rounded-full bg-white transition-all"
-                                style={{
-                                  top: "2px",
-                                  left: profileData.hasDisability ? "26px" : "2px",
-                                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                                }}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section: 관심 카테고리 */}
-                  <div>
-                    <div className="flex items-center gap-2 pb-4 mb-6 border-b" style={{ borderColor: "#e9efed" }}>
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M10 2L12.5 7.5L18 8.5L14 13L15 18.5L10 15.5L5 18.5L6 13L2 8.5L7.5 7.5L10 2Z" stroke="#006a63" strokeWidth="1.5" strokeLinejoin="round"/>
-                      </svg>
-                      <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>관심 카테고리</P>
-                    </div>
-
-                    <div className="flex gap-4">
-                      {(["주거", "일자리", "복지"] as const).map((category) => {
-                        const isSelected = profileData.interests.includes(category);
-                        const colors: Record<string, { bg: string; text: string; border: string }> = {
-                          주거: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
-                          일자리: { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
-                          복지: { bg: "#faf5ff", text: "#9333ea", border: "#e9d5ff" },
-                        };
-
-                        return (
-                            <button
-                                key={category}
-                                onClick={() => toggleInterest(category)}
-                                disabled={!isEditingProfile}
-                                className="flex-1 py-4 rounded-xl transition-all"
-                                style={{
-                                  backgroundColor: isSelected ? colors[category].bg : (isEditingProfile ? "white" : "#f8fafc"),
-                                  border: `2px solid ${isSelected ? colors[category].border : "#e9efed"}`,
-                                  cursor: isEditingProfile ? "pointer" : "not-allowed",
-                                  fontFamily: "Pretendard, sans-serif",
-                                  fontSize: 15,
-                                  fontWeight: isSelected ? 700 : 500,
-                                  color: isSelected ? colors[category].text : "#64748b",
-                                  opacity: isEditingProfile ? 1 : 0.7,
-                                }}
-                            >
-                              <div className="flex items-center justify-center gap-2">
-                                {isSelected && (
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                      <circle cx="8" cy="8" r="7" fill={colors[category].text} />
-                                      <path d="M5 8L7 10L11 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                )}
-                                {category}
-                              </div>
-                            </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  {isEditingProfile ? (
-                      <div className="flex gap-3">
-                        <button
-                            onClick={() => setIsEditingProfile(false)}
-                            className="flex-1 py-4 rounded-xl text-base font-bold transition-all hover:bg-slate-100"
-                            style={{ backgroundColor: "white", color: "#64748b", border: "2px solid #e9efed", cursor: "pointer", fontFamily: "Pretendard, sans-serif" }}
-                        >
-                          취소
-                        </button>
-                        <button
-                            onClick={handleSaveProfile}
-                            className="flex-1 py-4 rounded-xl text-base font-bold transition-all hover:opacity-90"
-                            style={{ backgroundColor: "#006a63", color: "white", border: "none", cursor: "pointer", fontFamily: "Pretendard, sans-serif", boxShadow: "0 4px 12px rgba(0,106,99,0.25)" }}
-                        >
-                          변경사항 저장
-                        </button>
-                      </div>
-                  ) : (
-                      <button
-                          onClick={() => setIsEditingProfile(true)}
-                          className="w-full py-4 rounded-xl text-base font-bold transition-all hover:opacity-90"
-                          style={{ backgroundColor: "#006a63", color: "white", border: "none", cursor: "pointer", fontFamily: "Pretendard, sans-serif", boxShadow: "0 4px 12px rgba(0,106,99,0.25)" }}
-                      >
-                        정보 수정하기
-                      </button>
-                  )}
+                  <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>개인 정보 수정</P>
                 </div>
               </div>
           )}
         </main>
 
-        {/* ── Floating Compare Bar ── */}
-        {mainTab === "scraps" && (
-            <div
-                className="fixed bottom-6 z-40 transition-all duration-300"
-                style={{
-                  left: "50%",
-                  transform: `translateX(-50%) translateY(${selected.length === 0 ? "8px" : "0px"})`,
-                  opacity: selected.length > 0 ? 1 : 0.9,
-                }}
-            >
-              <div
-                  className="flex items-center gap-4 px-6 py-4 rounded-2xl"
-                  style={{
-                    backgroundColor: "#006a63",
-                    boxShadow: "0 8px 32px rgba(0,106,99,0.35), 0 2px 8px rgba(0,0,0,0.15)",
-                    border: "1px solid rgba(79,209,197,0.3)",
-                    minWidth: 420,
-                  }}
-              >
-                {/* Left: info */}
-                <div className="flex items-center gap-3 flex-1">
-                  <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: selected.length === 0 ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.25)" }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M2 4H14M2 8H10M2 12H12" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </div>
-
-                  {selected.length === 0 ? (
-                      <P style={{ fontSize: 14, color: "rgba(255,255,255,0.85)" }}>공고를 선택해 비교해보세요</P>
-                  ) : (
-                      <div className="flex items-center gap-2">
-                        <P style={{ fontSize: 14, color: "white", fontWeight: 600 }}>
-                          {lockedCategory && (
-                              <span
-                                  className="inline-block px-2 py-0.5 rounded-full text-xs mr-2"
-                                  style={{ backgroundColor: "rgba(255,255,255,0.95)", color: categoryColor[lockedCategory].text, fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
-                              >
-                        {lockedCategory}
-                      </span>
-                          )}
-                          {selected.length}개 선택됨
-                        </P>
-                        <span
-                            className="px-2 py-0.5 rounded-full text-xs font-bold"
-                            style={{ backgroundColor: "rgba(255,255,255,0.25)", color: "white", fontFamily: "Pretendard, sans-serif", border: "1px solid rgba(255,255,255,0.4)" }}
-                        >
-                    {selected.length}/3
-                  </span>
-
-                        {/* Selected pills */}
-                        <div className="flex gap-1 ml-1">
-                          {selectedPolicies.map((p) => (
-                              <div
-                                  key={p.id}
-                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs"
-                                  style={{ backgroundColor: "rgba(255,255,255,0.2)", fontFamily: "Pretendard, sans-serif", color: "white", border: "1px solid rgba(255,255,255,0.3)" }}
-                              >
-                                {p.title.slice(0, 8)}…
-                                <button
-                                    onClick={(e) => toggleSelect(p.id, e)}
-                                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "rgba(255,255,255,0.9)", lineHeight: 1, fontWeight: 700 }}
-                                >
-                                  ×
-                                </button>
-                              </div>
-                          ))}
-                        </div>
-                      </div>
-                  )}
-                </div>
-
-                {/* Right: buttons */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {selected.length > 0 && (
-                      <button
-                          onClick={clearSelection}
-                          className="px-4 py-2 rounded-xl text-sm transition-colors hover:bg-white/10"
-                          style={{ fontFamily: "Pretendard, sans-serif", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", color: "white", cursor: "pointer" }}
-                      >
-                        선택 해제
-                      </button>
-                  )}
-                  <button
-                      disabled={selected.length < 2}
-                      onClick={() => selected.length >= 2 && setShowCompare(true)}
-                      className="px-6 py-2 rounded-xl text-sm font-bold transition-all"
-                      style={{
-                        fontFamily: "Pretendard, sans-serif",
-                        backgroundColor: selected.length >= 2 ? "white" : "rgba(255,255,255,0.15)",
-                        color: selected.length >= 2 ? "#006a63" : "rgba(255,255,255,0.5)",
-                        border: "none",
-                        cursor: selected.length >= 2 ? "pointer" : "not-allowed",
-                        boxShadow: selected.length >= 2 ? "0 4px 12px rgba(255,255,255,0.25)" : "none",
-                        transform: selected.length >= 2 ? "scale(1.05)" : "scale(1)",
-                      }}
-                  >
-                    비교하기
-                  </button>
-                </div>
-              </div>
-            </div>
-        )}
-
-        {/* ── Compare Modal ── */}
         {showCompare && (
             <CompareModal
                 policies={selectedPolicies}
@@ -1639,7 +1296,6 @@ export function MyPage({ onNavigate }: MyPageProps) {
             />
         )}
 
-        {/* ── Policy Detail Side Panel ── */}
         {detailPolicyId && (
             <PolicyDetailSidePanel
                 policyId={detailPolicyId}
