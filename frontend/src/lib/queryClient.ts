@@ -49,4 +49,12 @@ export const queryKeys = {
     all: () => ['checklist'] as const,
     list: () => ['checklist', 'list'] as const,
   },
+  calendar: {
+    all: () => ['calendar'] as const,
+    events: () => ['calendar', 'events'] as const,
+  },
+  benefits: {
+    all: () => ['benefits'] as const,
+    summary: (userId: string) => ['benefits', 'summary', userId] as const,
+  },
 } as const;
