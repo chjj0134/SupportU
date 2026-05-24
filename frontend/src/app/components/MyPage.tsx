@@ -589,7 +589,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   // Profile state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
-    userId: "jiwon_kim_2024",
+    uid: "jiwon_kim_2024",
     age: 26,
     gender: "여성",
     region: "서울특별시",
@@ -600,16 +600,16 @@ export function MyPage({ onNavigate }: MyPageProps) {
     annualIncome: 0,
     assets: "5,000만원 미만",
     createdAt: "2024-03-15",
-    interests: ["주거", "일자리"] as ("주거" | "일자리" | "복지")[],
+    preferredCategories: ["주거", "일자리"] as ("주거" | "일자리" | "복지")[],
   });
 
   const toggleInterest = (category: "주거" | "일자리" | "복지") => {
     if (!isEditingProfile) return;
     setProfileData((prev) => ({
       ...prev,
-      interests: prev.interests.includes(category)
-          ? prev.interests.filter((i) => i !== category)
-          : [...prev.interests, category],
+      preferredCategories: prev.preferredCategories.includes(category)
+          ? prev.preferredCategories.filter((i) => i !== category)
+          : [...prev.preferredCategories, category],
     }));
   };
 
