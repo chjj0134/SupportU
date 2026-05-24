@@ -6,6 +6,7 @@ on:
       - front
     paths:
       - 'frontend/**'
+  workflow_dispatch:
 
 jobs:
   deploy:
