@@ -525,27 +525,27 @@ export function MyPage({ onNavigate }: MyPageProps) {
   // Profile state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
-    userId: "jiwon_kim_2024",
+    uid: "jiwon_kim_2024",               // DB: user_profiles.uid
     age: 26,
     gender: "여성",
-    region: "서울특별시",
-    district: "강남구",
+    city: "서울특별시",                   // DB: user_profiles.city (시/도)
+    scity: "강남구",                      // DB: user_profiles.scity (구/군/시)
     education: "대학교 졸업",
-    employmentStatus: "구직 중",
-    hasDisability: false,
-    annualIncome: 0,
-    assets: "5,000만원 미만",
+    employment: "구직 중",               // DB: user_profiles.employment
+    disability: false,                   // DB: user_profiles.disability
+    incomeInteger: 0,                    // DB: user_profiles.income_integer
+    asset: "5,000만원 미만",             // DB: user_profiles.asset
     createdAt: "2024-03-15",
-    interests: ["주거", "일자리"] as ("주거" | "일자리" | "복지")[],
+    preferredCategories: ["주거", "일자리"] as ("주거" | "일자리" | "복지")[],  // DB: user_profiles.preferred_categories
   });
 
   const toggleInterest = (category: "주거" | "일자리" | "복지") => {
     if (!isEditingProfile) return;
     setProfileData((prev) => ({
       ...prev,
-      interests: prev.interests.includes(category)
-        ? prev.interests.filter((i) => i !== category)
-        : [...prev.interests, category],
+      preferredCategories: prev.preferredCategories.includes(category)
+        ? prev.preferredCategories.filter((i) => i !== category)
+        : [...prev.preferredCategories, category],
     }));
   };
 
@@ -1208,8 +1208,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                     <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>유저 아이디</P>
                     <input
                       type="text"
-                      value={profileData.userId}
-                      onChange={(e) => setProfileData({ ...profileData, userId: e.target.value })}
+                      value={profileData.uid}
+                      onChange={(e) => setProfileData({ ...profileData, uid: e.target.value })}
                       disabled={!isEditingProfile}
                       className="w-full px-4 py-3 rounded-lg border"
                       style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
@@ -1249,8 +1249,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                   <div>
                     <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>거주지 (시/도)</P>
                     <select
-                      value={profileData.region}
-                      onChange={(e) => setProfileData({ ...profileData, region: e.target.value })}
+                      value={profileData.city}
+                      onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}
                       disabled={!isEditingProfile}
                       className="w-full px-4 py-3 rounded-lg border"
                       style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
@@ -1268,8 +1268,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                     <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>거주지 (구/군)</P>
                     <input
                       type="text"
-                      value={profileData.district}
-                      onChange={(e) => setProfileData({ ...profileData, district: e.target.value })}
+                      value={profileData.scity}
+                      onChange={(e) => setProfileData({ ...profileData, scity: e.target.value })}
                       disabled={!isEditingProfile}
                       className="w-full px-4 py-3 rounded-lg border"
                       style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
@@ -1299,8 +1299,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                   <div>
                     <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>취업 상태</P>
                     <select
-                      value={profileData.employmentStatus}
-                      onChange={(e) => setProfileData({ ...profileData, employmentStatus: e.target.value })}
+                      value={profileData.employment}
+                      onChange={(e) => setProfileData({ ...profileData, employment: e.target.value })}
                       disabled={!isEditingProfile}
                       className="w-full px-4 py-3 rounded-lg border"
                       style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
@@ -1318,8 +1318,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                     <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>연소득 (만원)</P>
                     <input
                       type="number"
-                      value={profileData.annualIncome}
-                      onChange={(e) => setProfileData({ ...profileData, annualIncome: parseInt(e.target.value) })}
+                      value={profileData.incomeInteger}
+                      onChange={(e) => setProfileData({ ...profileData, incomeInteger: parseInt(e.target.value) })}
                       disabled={!isEditingProfile}
                       className="w-full px-4 py-3 rounded-lg border"
                       style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
@@ -1331,8 +1331,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                   <div>
                     <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>자산현황</P>
                     <select
-                      value={profileData.assets}
-                      onChange={(e) => setProfileData({ ...profileData, assets: e.target.value })}
+                      value={profileData.asset}
+                      onChange={(e) => setProfileData({ ...profileData, asset: e.target.value })}
                       disabled={!isEditingProfile}
                       className="w-full px-4 py-3 rounded-lg border"
                       style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
@@ -1357,11 +1357,11 @@ export function MyPage({ onNavigate }: MyPageProps) {
                     <div className="flex items-center justify-between p-4 rounded-lg border" style={{ borderColor: "#e9efed", backgroundColor: isEditingProfile ? "white" : "#f8fafc" }}>
                       <P style={{ fontSize: 15, color: "#171d1c", fontWeight: 500 }}>장애 유무</P>
                       <button
-                        onClick={() => isEditingProfile && setProfileData({ ...profileData, hasDisability: !profileData.hasDisability })}
+                        onClick={() => isEditingProfile && setProfileData({ ...profileData, disability: !profileData.disability })}
                         disabled={!isEditingProfile}
                         className="relative w-12 h-6 rounded-full transition-all"
                         style={{
-                          backgroundColor: profileData.hasDisability ? "#006a63" : "#cbd5e1",
+                          backgroundColor: profileData.disability ? "#006a63" : "#cbd5e1",
                           border: "none",
                           cursor: isEditingProfile ? "pointer" : "not-allowed",
                           opacity: isEditingProfile ? 1 : 0.6,
@@ -1371,7 +1371,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                           className="absolute w-5 h-5 rounded-full bg-white transition-all"
                           style={{
                             top: "2px",
-                            left: profileData.hasDisability ? "26px" : "2px",
+                            left: profileData.disability ? "26px" : "2px",
                             boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
                           }}
                         />
@@ -1392,7 +1392,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
                 <div className="flex gap-4">
                   {(["주거", "일자리", "복지"] as const).map((category) => {
-                    const isSelected = profileData.interests.includes(category);
+                    const isSelected = profileData.preferredCategories.includes(category);
                     const colors: Record<string, { bg: string; text: string; border: string }> = {
                       주거: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
                       일자리: { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },

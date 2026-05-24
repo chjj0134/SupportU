@@ -21,17 +21,17 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const saveProfileMutation = useSaveProfile();
   const [formData, setFormData] = useState({
-    userId: "",
+    userId: "",             // UI 전용 (API로 전송 안 됨, OAuth uid 사용)
     age: 25,
     gender: "선택 안함",
-    region: "",
-    district: "",
+    city: "",               // DB: user_profiles.city (시/도)
+    scity: "",              // DB: user_profiles.scity (구/군/시)
     education: "",
     employment: "",
-    annualIncome: 0,
-    assets: 0,
-    hasDisability: false,
-    interests: [] as string[],
+    incomeInteger: 0,       // DB: user_profiles.income_integer (만원 입력 → API 전송 시 원 변환)
+    asset: 0,               // DB: user_profiles.asset (만원 입력 → API 전송 시 원 변환)
+    disability: false,      // DB: user_profiles.disability
+    preferredCategories: [] as string[], // DB: user_profiles.preferred_categories
   });
 
   const totalSteps = TOTAL_STEPS;
@@ -48,14 +48,14 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
     const profileData: ProfileRequest = {
       age: formData.age,
       gender: GENDER_API_VALUE[formData.gender] ?? "NONE",
-      city: formData.region,
-      scity: formData.district,
+      city: formData.city,
+      scity: formData.scity,
       education: formData.education,
       employment: formData.employment,
-      disability: formData.hasDisability,
-      incomeInteger: formData.annualIncome * 10000,
-      asset: String(formData.assets * 10000),
-      preferredCategories: formData.interests,
+      disability: formData.disability,
+      incomeInteger: formData.incomeInteger * 10000,  // 만원 → 원
+      asset: String(formData.asset * 10000),           // 만원 → 원 (string)
+      preferredCategories: formData.preferredCategories,
     };
 
     saveProfileMutation.mutate(profileData, {
@@ -79,9 +79,9 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
   const toggleInterest = (category: string) => {
     setFormData((prev) => ({
       ...prev,
-      interests: prev.interests.includes(category)
-        ? prev.interests.filter((i) => i !== category)
-        : [...prev.interests, category],
+      preferredCategories: prev.preferredCategories.includes(category)
+        ? prev.preferredCategories.filter((i) => i !== category)
+        : [...prev.preferredCategories, category],
     }));
   };
 
@@ -95,13 +95,13 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
       return formData.userId.length > 0 && formData.age > 0;
     }
     if (currentStep === 2) {
-      return formData.region && formData.district && formData.education && formData.employment;
+      return formData.city && formData.scity && formData.education && formData.employment;
     }
     if (currentStep === 3) {
       return true; // 경제 정보는 선택사항으로 처리
     }
     if (currentStep === 4) {
-      return formData.interests.length > 0;
+      return formData.preferredCategories.length > 0;
     }
     return false;
   };
@@ -269,8 +269,8 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                 <div>
                   <P style={{ fontSize: 14, fontWeight: 600, color: "#3c4947", marginBottom: 10 }}>거주지 (시/도)</P>
                   <select
-                    value={formData.region}
-                    onChange={(e) => setFormData({ ...formData, region: e.target.value, district: "" })}
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value, scity: "" })}
                     className="w-full px-5 py-4 rounded-xl border"
                     style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", cursor: "pointer" }}
                   >
@@ -284,21 +284,21 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                 <div>
                   <P style={{ fontSize: 14, fontWeight: 600, color: "#3c4947", marginBottom: 10 }}>거주지 (구/군)</P>
                   <select
-                    value={formData.district}
-                    onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                    disabled={!formData.region}
+                    value={formData.scity}
+                    onChange={(e) => setFormData({ ...formData, scity: e.target.value })}
+                    disabled={!formData.city}
                     className="w-full px-5 py-4 rounded-xl border"
                     style={{
                       fontFamily: "Pretendard, sans-serif",
                       fontSize: 15,
                       borderColor: "#e9efed",
                       outline: "none",
-                      cursor: formData.region ? "pointer" : "not-allowed",
-                      backgroundColor: formData.region ? "white" : "#f8fafc",
+                      cursor: formData.city ? "pointer" : "not-allowed",
+                      backgroundColor: formData.city ? "white" : "#f8fafc",
                     }}
                   >
                     <option value="">선택해주세요</option>
-                    {formData.region && districtsByRegion[formData.region]?.map((district) => (
+                    {formData.city && districtsByRegion[formData.city]?.map((district) => (
                       <option key={district} value={district}>{district}</option>
                     ))}
                   </select>
@@ -376,8 +376,8 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                   <P style={{ fontSize: 14, fontWeight: 600, color: "#3c4947", marginBottom: 10 }}>연소득 (만원)</P>
                   <input
                     type="number"
-                    value={formData.annualIncome}
-                    onChange={(e) => setFormData({ ...formData, annualIncome: parseInt(e.target.value) || 0 })}
+                    value={formData.incomeInteger}
+                    onChange={(e) => setFormData({ ...formData, incomeInteger: parseInt(e.target.value) || 0 })}
                     placeholder="예: 2500"
                     className="w-full px-5 py-4 rounded-xl border transition-all"
                     style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none" }}
@@ -391,8 +391,8 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                   <P style={{ fontSize: 14, fontWeight: 600, color: "#3c4947", marginBottom: 10 }}>자산현황 (만원)</P>
                   <input
                     type="number"
-                    value={formData.assets}
-                    onChange={(e) => setFormData({ ...formData, assets: parseInt(e.target.value) || 0 })}
+                    value={formData.asset}
+                    onChange={(e) => setFormData({ ...formData, asset: parseInt(e.target.value) || 0 })}
                     placeholder="예: 5000"
                     className="w-full px-5 py-4 rounded-xl border transition-all"
                     style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none" }}
@@ -409,10 +409,10 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                       <P style={{ fontSize: 13, color: "#64748b" }}>장애인 대상 정책을 추천받으실 수 있어요.</P>
                     </div>
                     <button
-                      onClick={() => setFormData({ ...formData, hasDisability: !formData.hasDisability })}
+                      onClick={() => setFormData({ ...formData, disability: !formData.disability })}
                       className="relative w-14 h-7 rounded-full transition-all flex-shrink-0"
                       style={{
-                        backgroundColor: formData.hasDisability ? "#006a63" : "#cbd5e1",
+                        backgroundColor: formData.disability ? "#006a63" : "#cbd5e1",
                         border: "none",
                         cursor: "pointer",
                       }}
@@ -421,7 +421,7 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                         className="absolute w-6 h-6 rounded-full bg-white transition-all"
                         style={{
                           top: "2px",
-                          left: formData.hasDisability ? "30px" : "2px",
+                          left: formData.disability ? "30px" : "2px",
                           boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
                         }}
                       />
@@ -445,7 +445,7 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                     { category: "복지", icon: "💝", color: "#9333ea", bg: "#faf5ff", border: "#e9d5ff" },
                     { category: "일자리", icon: "💼", color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
                   ].map((item) => {
-                    const isSelected = formData.interests.includes(item.category);
+                    const isSelected = formData.preferredCategories.includes(item.category);
 
                     return (
                       <button
@@ -476,7 +476,7 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                   })}
                 </div>
 
-                {formData.interests.length > 0 && (
+                {formData.preferredCategories.length > 0 && (
                   <div
                     className="p-4 rounded-xl flex items-center gap-2"
                     style={{ backgroundColor: "rgba(0,106,99,0.08)", border: "1px solid rgba(0,106,99,0.2)" }}
@@ -486,7 +486,7 @@ export function SignupPage({ onComplete, onCancel }: SignupPageProps) {
                       <path d="M6 9L8 11L12 7" stroke="#006a63" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <P style={{ fontSize: 14, color: "#006a63" }}>
-                      <strong>{formData.interests.join(", ")}</strong> 분야의 정책을 우선 추천해드릴게요!
+                      <strong>{formData.preferredCategories.join(", ")}</strong> 분야의 정책을 우선 추천해드릴게요!
                     </P>
                   </div>
                 )}
