@@ -1,5 +1,7 @@
 import { createBrowserRouter, Navigate, Outlet, useNavigate, useParams } from 'react-router';
 import { useAuthUser } from '../api/queries/useAuthQueries';
+import { useProfile } from '../api/queries/useProfileQueries';
+import type { ProfileResponse } from '../api/types';
 import { Navbar } from './components/Navbar';
 import { HomePage } from './components/HomePage';
 import { PolicyListPage } from './components/PolicyListPage';
@@ -10,16 +12,38 @@ import { SignupPage } from './components/SignupPage';
 import { Spinner } from './components/common/Spinner';
 import { P } from './components/common/Typography';
 
+function isProfileComplete(profile: ProfileResponse | null | undefined) {
+  return (
+      !!profile &&
+      profile.age !== null &&
+      profile.gender !== null &&
+      profile.city !== null &&
+      profile.scity !== null &&
+      profile.education !== null &&
+      profile.employment !== null &&
+      profile.disability !== null &&
+      profile.incomeInteger !== null &&
+      profile.asset !== null &&
+      profile.preferredCategories !== null &&
+      profile.preferredCategories.length > 0
+  );
+}
+
 /**
  * 인증된 사용자만 접근 가능한 라우트 가드.
  * 로딩 중에는 spinner, 비로그인 시 /login으로 리다이렉트.
+ * 로그인은 됐지만 프로필이 미완성인 경우 /signup으로 보낸다.
  */
 function ProtectedLayout() {
-  const { data: user, isLoading } = useAuthUser();
+  const { data: user, isLoading: isAuthLoading } = useAuthUser();
+  const { data: profile, isLoading: isProfileLoading } = useProfile();
   const navigate = useNavigate();
 
-  if (isLoading) return <Spinner fullScreen label="로딩 중..." />;
+  if (isAuthLoading) return <Spinner fullScreen label="로딩 중..." />;
   if (!user) return <Navigate to="/login" replace />;
+
+  if (isProfileLoading) return <Spinner fullScreen label="프로필 확인 중..." />;
+  if (!isProfileComplete(profile)) return <Navigate to="/signup" replace />;
 
   const handleNavigate = (page: string, id?: string) => {
     if (page === 'policy-detail' && id) navigate(`/policies/${id}`);
@@ -31,13 +55,13 @@ function ProtectedLayout() {
   };
 
   return (
-    <div style={{ fontFamily: 'Pretendard, sans-serif' }}>
-      <Navbar
-        currentPage={getCurrentPage()}
-        onNavigate={(p) => handleNavigate(p)}
-      />
-      <Outlet context={{ onNavigate: handleNavigate }} />
-    </div>
+      <div style={{ fontFamily: 'Pretendard, sans-serif' }}>
+        <Navbar
+            currentPage={getCurrentPage()}
+            onNavigate={(p) => handleNavigate(p)}
+        />
+        <Outlet context={{ onNavigate: handleNavigate }} />
+      </div>
   );
 }
 
@@ -99,37 +123,37 @@ function MyPageRoute() {
 
 function SettingsRoute() {
   return (
-    <div
-      className="min-h-screen pt-16 flex items-center justify-center"
-      style={{ backgroundColor: '#f5fbf8' }}
-    >
-      <div className="text-center">
-        <P style={{ fontSize: 24, color: '#3c4947', marginBottom: 8 }}>설정</P>
-        <P style={{ fontSize: 16, color: '#94a3b8' }}>준비 중입니다.</P>
+      <div
+          className="min-h-screen pt-16 flex items-center justify-center"
+          style={{ backgroundColor: '#f5fbf8' }}
+      >
+        <div className="text-center">
+          <P style={{ fontSize: 24, color: '#3c4947', marginBottom: 8 }}>설정</P>
+          <P style={{ fontSize: 16, color: '#94a3b8' }}>준비 중입니다.</P>
+        </div>
       </div>
-    </div>
   );
 }
 
 function LoginRoute() {
   const navigate = useNavigate();
   return (
-    <PublicOnlyRoute>
-      <LoginPage
-        onNavigate={() => navigate('/')}
-        onSignup={() => navigate('/signup')}
-      />
-    </PublicOnlyRoute>
+      <PublicOnlyRoute>
+        <LoginPage
+            onNavigate={() => navigate('/')}
+            onSignup={() => navigate('/signup')}
+        />
+      </PublicOnlyRoute>
   );
 }
 
 function SignupRoute() {
   const navigate = useNavigate();
   return (
-    <SignupPage
-      onComplete={() => navigate('/', { replace: true })}
-      onCancel={() => navigate('/login')}
-    />
+      <SignupPage
+          onComplete={() => navigate('/', { replace: true })}
+          onCancel={() => navigate('/login')}
+      />
   );
 }
 

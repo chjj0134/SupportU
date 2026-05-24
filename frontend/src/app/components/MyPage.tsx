@@ -1,8 +1,12 @@
 import { useState } from "react";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import type { ScrappedPolicy } from "../../api/policies";
+import type { CalendarEvent } from "../../api/calendar";
 import { useScrappedPolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
+import { useProfile } from "../../api/queries/useProfileQueries";
+import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
+import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
 import { Spinner } from "./common/Spinner";
@@ -36,12 +40,6 @@ const funnelData = [
   { label: "수혜 완료", value: 2, color: "#004d40" },
 ];
 
-const cashBenefits = [
-  { label: "주거 (월세지원 등)", amount: "2,400,000원", pct: 70, color: "#006a63" },
-  { label: "취업 (장려금 등)", amount: "1,020,000원", pct: 30, color: "#3b6661" },
-  { label: "복지 (포인트 등)", amount: "0원", pct: 0, color: "#8e4e11" },
-];
-
 const managedPolicies = [
   {
     id: "1",
@@ -54,7 +52,7 @@ const managedPolicies = [
     deadline: "2025-05-30",
     dday: 13,
     submittedDate: "2025-05-15",
-    journeyStep: 3, // 0: 지원 필요, 1: 지원 완료, 2: 결과 대기, 3: 수혜 완료
+    journeyStep: 3,
     documents: [
       { name: "주민등록등본", checked: true },
       { name: "소득증명서", checked: true },
@@ -102,32 +100,71 @@ const managedPolicies = [
   },
 ];
 
-const calendarDays = [
-  { day: 1, events: [] as { text: string; color: string; textColor: string }[], today: false },
-  { day: 2, events: [{ text: "청년월세지원 마감", color: "#ffdad6", textColor: "#93000a" }], today: false },
-  { day: 3, events: [], today: false }, { day: 4, events: [], today: false }, { day: 5, events: [], today: false },
-  { day: 6, events: [{ text: "서울 청년수당 서류", color: "rgba(255,171,103,0.3)", textColor: "#8e4e11" }], today: false },
-  { day: 7, events: [], today: false }, { day: 8, events: [], today: false },
-  { day: 9, events: [{ text: "월세지원 마감", color: "#ffdad6", textColor: "#93000a" }], today: false },
-  { day: 10, events: [{ text: "역세권청년주택 발표", color: "#e8def8", textColor: "#4a4458" }], today: false },
-  { day: 11, events: [], today: false }, { day: 12, events: [], today: false }, { day: 13, events: [], today: false },
-  { day: 14, events: [{ text: "청년월세지원 마감", color: "#ffdad6", textColor: "#93000a" }, { text: "역세권청년주택 발표", color: "#e8def8", textColor: "#4a4458" }], today: true },
-  { day: 15, events: [], today: false }, { day: 16, events: [], today: false }, { day: 17, events: [], today: false },
-  { day: 18, events: [], today: false },
-  { day: 19, events: [{ text: "국민취업지원 마감", color: "rgba(79,209,197,0.2)", textColor: "#006a63" }], today: false },
-  ...Array.from({ length: 12 }, (_, i) => ({ day: 20 + i, events: [] as { text: string; color: string; textColor: string }[], today: false })),
-];
-
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
+
+type CalendarDay = {
+  day: number;
+  events: { text: string; color: string; textColor: string }[];
+  today: boolean;
+};
+
+function toCalendarColor(category: string) {
+  if (category === "주거") {
+    return { color: "#ffdad6", textColor: "#93000a" };
+  }
+
+  if (category === "일자리") {
+    return { color: "rgba(79,209,197,0.2)", textColor: "#006a63" };
+  }
+
+  if (category === "복지") {
+    return { color: "#e8def8", textColor: "#4a4458" };
+  }
+
+  return { color: "rgba(255,171,103,0.3)", textColor: "#8e4e11" };
+}
+
+function buildCalendarDays(
+    events: CalendarEvent[],
+    year: number,
+    month: number,
+): CalendarDay[] {
+  const today = new Date();
+  const lastDay = new Date(year, month, 0).getDate();
+
+  return Array.from({ length: lastDay }, (_, index) => {
+    const day = index + 1;
+    const dayEvents = events
+        .filter((event) => {
+          const date = new Date(event.eventStartAt);
+          return date.getFullYear() === year && date.getMonth() + 1 === month && date.getDate() === day;
+        })
+        .map((event) => {
+          const colors = toCalendarColor(event.category);
+
+          return {
+            text: event.title,
+            color: colors.color,
+            textColor: colors.textColor,
+          };
+        });
+
+    return {
+      day,
+      events: dayEvents,
+      today: today.getFullYear() === year && today.getMonth() + 1 === month && today.getDate() === day,
+    };
+  });
+}
 
 /* ─────────────────────────── Policy Detail Side Panel ─────────────────────────── */
 
 function PolicyDetailSidePanel({
-  policyId,
-  policies,
-  onClose,
-  onSchedule,
-}: {
+                                 policyId,
+                                 policies,
+                                 onClose,
+                                 onSchedule,
+                               }: {
   policyId: string;
   policies: ScrappedPolicy[];
   onClose: () => void;
@@ -152,159 +189,159 @@ function PolicyDetailSidePanel({
   };
 
   return (
-    <>
-      {/* Overlay */}
-      <div
-        className="fixed inset-0 z-50 transition-opacity duration-300"
-        style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
-        onClick={onClose}
-      />
-
-      {/* Side Panel */}
-      <div
-        className="fixed top-0 right-0 bottom-0 z-50 bg-white overflow-y-auto animate-slide-in"
-        style={{
-          width: "50%",
-          boxShadow: "-4px 0 24px rgba(0,0,0,0.15)",
-          animation: "slideIn 0.3s ease-out",
-        }}
-      >
-        {/* Header */}
+      <>
+        {/* Overlay */}
         <div
-          className="sticky top-0 z-10 px-8 py-5 flex items-center justify-between border-b"
-          style={{ backgroundColor: "rgba(255,255,255,0.95)", backdropFilter: "blur(8px)", borderColor: "#e9efed" }}
-        >
-          <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>공고 상세</P>
-          <button
+            className="fixed inset-0 z-50 transition-opacity duration-300"
+            style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
-            style={{ background: "none", border: "none", cursor: "pointer" }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1 1L13 13M13 1L1 13" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
+        />
 
-        {/* Content */}
-        <div className="px-8 py-8 pb-32">
-          {/* Policy Header */}
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
+        {/* Side Panel */}
+        <div
+            className="fixed top-0 right-0 bottom-0 z-50 bg-white overflow-y-auto animate-slide-in"
+            style={{
+              width: "50%",
+              boxShadow: "-4px 0 24px rgba(0,0,0,0.15)",
+              animation: "slideIn 0.3s ease-out",
+            }}
+        >
+          {/* Header */}
+          <div
+              className="sticky top-0 z-10 px-8 py-5 flex items-center justify-between border-b"
+              style={{ backgroundColor: "rgba(255,255,255,0.95)", backdropFilter: "blur(8px)", borderColor: "#e9efed" }}
+          >
+            <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>공고 상세</P>
+            <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
+                style={{ background: "none", border: "none", cursor: "pointer" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1L13 13M13 1L1 13" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="px-8 py-8 pb-32">
+            {/* Policy Header */}
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
                 <span
-                  className="px-2.5 py-1 rounded text-xs"
-                  style={{ backgroundColor: categoryColor[policy.category].bg, color: categoryColor[policy.category].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
+                    className="px-2.5 py-1 rounded text-xs"
+                    style={{ backgroundColor: categoryColor[policy.category].bg, color: categoryColor[policy.category].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
                 >
                   {policy.category}
                 </span>
-                <P style={{ fontSize: 13, color: policy.deadline === "상시" ? "#006a63" : "#ba1a1a", fontWeight: 700 }}>{policy.deadline}</P>
-              </div>
-              <h2 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 26, color: "#171d1c", margin: "0 0 4px 0" }}>
-                {policy.title}
-              </h2>
-              <P style={{ fontSize: 15, color: "#3c4947" }}>{policy.org}</P>
-            </div>
-            <div
-              className="flex flex-col items-end gap-1"
-              style={{ backgroundColor: categoryBg[policy.category] || "#f1f5f9", borderRadius: 12, padding: "12px 16px" }}
-            >
-              <P style={{ fontSize: 12, color: "#3c4947" }}>지원 규모</P>
-              <P style={{ fontSize: 18, color: "#006a63", fontWeight: 700 }}>{policy.support}</P>
-            </div>
-          </div>
-
-          {/* Overview Card */}
-          <div
-            className="rounded-2xl p-6 mb-6"
-            style={{ border: "1px solid rgba(79,209,197,0.3)", background: "rgba(245,251,248,0.5)" }}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <circle cx="9" cy="9" r="8" stroke="#006A63" strokeWidth="1.5" />
-                <path d="M9 5V9.5L12 11" stroke="#006A63" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <P style={{ fontSize: 16, color: "#006a63", fontWeight: 700 }}>지원 개요</P>
-            </div>
-            <P style={{ fontSize: 15, color: "#3c4947", lineHeight: 1.7 }}>{detail?.fullDesc ?? "정보를 불러오는 중..."}</P>
-            <button
-              className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg transition-all hover:bg-slate-100"
-              style={{ fontFamily: "Pretendard, sans-serif", fontSize: 14, color: "#006a63", fontWeight: 600, background: "white", border: "1.5px solid rgba(79,209,197,0.4)", cursor: "pointer" }}
-              onClick={() => window.open(`https://example.com/policy/${policy.id}`, '_blank')}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
-                <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              원본 공고 보러가기
-            </button>
-          </div>
-
-          {/* Benefits Summary */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b" style={{ borderColor: "rgba(187,201,199,0.3)" }}>
-              <h3 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 20, color: "#171d1c", margin: 0 }}>지원 혜택 정리</h3>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {(detail?.benefits ?? []).map((benefit, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-4 p-4 rounded-xl"
-                  style={{ backgroundColor: "rgba(245,251,248,0.5)", border: "1px solid rgba(187,201,199,0.3)" }}
-                >
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#006a63" }}>
-                    <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
-                      <path d="M1 5L4.5 8.5L11 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <P style={{ fontSize: 15, color: "#171d1c", fontWeight: 500 }}>{benefit}</P>
+                  <P style={{ fontSize: 13, color: policy.deadline === "상시" ? "#006a63" : "#ba1a1a", fontWeight: 700 }}>{policy.deadline}</P>
                 </div>
-              ))}
+                <h2 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 26, color: "#171d1c", margin: "0 0 4px 0" }}>
+                  {policy.title}
+                </h2>
+                <P style={{ fontSize: 15, color: "#3c4947" }}>{policy.org}</P>
+              </div>
+              <div
+                  className="flex flex-col items-end gap-1"
+                  style={{ backgroundColor: categoryBg[policy.category] || "#f1f5f9", borderRadius: 12, padding: "12px 16px" }}
+              >
+                <P style={{ fontSize: 12, color: "#3c4947" }}>지원 규모</P>
+                <P style={{ fontSize: 18, color: "#006a63", fontWeight: 700 }}>{policy.support}</P>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Sticky Bottom CTA */}
-        <div
-          className="fixed bottom-0 right-0 px-8 py-6 flex flex-col gap-3"
-          style={{ width: "50%", backgroundColor: "rgba(255,255,255,0.95)", backdropFilter: "blur(10px)", borderTop: "1px solid #e9efed" }}
-        >
-          {applied ? (
+            {/* Overview Card */}
             <div
-              className="h-14 rounded-xl flex items-center justify-center gap-2"
-              style={{ backgroundColor: "#f0fdf4", border: "1px solid #16a34a" }}
+                className="rounded-2xl p-6 mb-6"
+                style={{ border: "1px solid rgba(79,209,197,0.3)", background: "rgba(245,251,248,0.5)" }}
             >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <circle cx="10" cy="10" r="9" fill="#16a34a" />
-                <path d="M6 10L9 13L14 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <P style={{ fontSize: 16, color: "#16a34a", fontWeight: 700 }}>일정이 등록되었습니다!</P>
+              <div className="flex items-center gap-2 mb-3">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="9" r="8" stroke="#006A63" strokeWidth="1.5" />
+                  <path d="M9 5V9.5L12 11" stroke="#006A63" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <P style={{ fontSize: 16, color: "#006a63", fontWeight: 700 }}>지원 개요</P>
+              </div>
+              <P style={{ fontSize: 15, color: "#3c4947", lineHeight: 1.7 }}>{detail?.fullDesc ?? "정보를 불러오는 중..."}</P>
+              <button
+                  className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg transition-all hover:bg-slate-100"
+                  style={{ fontFamily: "Pretendard, sans-serif", fontSize: 14, color: "#006a63", fontWeight: 600, background: "white", border: "1.5px solid rgba(79,209,197,0.4)", cursor: "pointer" }}
+                  onClick={() => window.open(`https://example.com/policy/${policy.id}`, '_blank')}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
+                  <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                원본 공고 보러가기
+              </button>
             </div>
-          ) : (
-            <button
-              className="h-14 rounded-xl flex items-center justify-center w-full gap-2 transition-all hover:opacity-90 active:scale-95"
-              style={{ backgroundColor: "#006a63", boxShadow: "0 8px 10px rgba(0,106,99,0.25)", fontFamily: "Pretendard, sans-serif", fontSize: 17, fontWeight: 700, color: "white", border: "none", cursor: "pointer" }}
-              onClick={handleApply}
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <rect x="2" y="3" width="16" height="15" rx="2" stroke="white" strokeWidth="1.5" />
-                <path d="M6 1V5M14 1V5M2 8H18" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M6 12H10M6 15H8" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              지원 일정 관리하기
-            </button>
-          )}
-          <div className="flex items-center justify-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="7" stroke="rgba(60,73,71,0.6)" strokeWidth="1.2" />
-              <path d="M8 5V8.5L10.5 10" stroke="rgba(60,73,71,0.6)" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-            <P style={{ fontSize: 13, color: "rgba(60,73,71,0.8)" }}>AI 에이전트가 일정과 필수 서류를 자동으로 정리해 드려요</P>
-          </div>
-        </div>
 
-        <style>{`
+            {/* Benefits Summary */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between pb-3 mb-4 border-b" style={{ borderColor: "rgba(187,201,199,0.3)" }}>
+                <h3 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 20, color: "#171d1c", margin: 0 }}>지원 혜택 정리</h3>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {(detail?.benefits ?? []).map((benefit, idx) => (
+                    <div
+                        key={idx}
+                        className="flex items-center gap-4 p-4 rounded-xl"
+                        style={{ backgroundColor: "rgba(245,251,248,0.5)", border: "1px solid rgba(187,201,199,0.3)" }}
+                    >
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#006a63" }}>
+                        <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+                          <path d="M1 5L4.5 8.5L11 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                      <P style={{ fontSize: 15, color: "#171d1c", fontWeight: 500 }}>{benefit}</P>
+                    </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Sticky Bottom CTA */}
+          <div
+              className="fixed bottom-0 right-0 px-8 py-6 flex flex-col gap-3"
+              style={{ width: "50%", backgroundColor: "rgba(255,255,255,0.95)", backdropFilter: "blur(10px)", borderTop: "1px solid #e9efed" }}
+          >
+            {applied ? (
+                <div
+                    className="h-14 rounded-xl flex items-center justify-center gap-2"
+                    style={{ backgroundColor: "#f0fdf4", border: "1px solid #16a34a" }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <circle cx="10" cy="10" r="9" fill="#16a34a" />
+                    <path d="M6 10L9 13L14 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <P style={{ fontSize: 16, color: "#16a34a", fontWeight: 700 }}>일정이 등록되었습니다!</P>
+                </div>
+            ) : (
+                <button
+                    className="h-14 rounded-xl flex items-center justify-center w-full gap-2 transition-all hover:opacity-90 active:scale-95"
+                    style={{ backgroundColor: "#006a63", boxShadow: "0 8px 10px rgba(0,106,99,0.25)", fontFamily: "Pretendard, sans-serif", fontSize: 17, fontWeight: 700, color: "white", border: "none", cursor: "pointer" }}
+                    onClick={handleApply}
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <rect x="2" y="3" width="16" height="15" rx="2" stroke="white" strokeWidth="1.5" />
+                    <path d="M6 1V5M14 1V5M2 8H18" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M6 12H10M6 15H8" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  지원 일정 관리하기
+                </button>
+            )}
+            <div className="flex items-center justify-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="7" stroke="rgba(60,73,71,0.6)" strokeWidth="1.2" />
+                <path d="M8 5V8.5L10.5 10" stroke="rgba(60,73,71,0.6)" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              <P style={{ fontSize: 13, color: "rgba(60,73,71,0.8)" }}>AI 에이전트가 일정과 필수 서류를 자동으로 정리해 드려요</P>
+            </div>
+          </div>
+
+          <style>{`
           @keyframes slideIn {
             from {
               transform: translateX(100%);
@@ -314,18 +351,18 @@ function PolicyDetailSidePanel({
             }
           }
         `}</style>
-      </div>
-    </>
+        </div>
+      </>
   );
 }
 
 /* ─────────────────────────── Compare Modal ─────────────────────────── */
 
 function CompareModal({
-  policies,
-  onClose,
-  onSchedule,
-}: {
+                        policies,
+                        onClose,
+                        onSchedule,
+                      }: {
   policies: ScrappedPolicy[];
   onClose: () => void;
   onSchedule: (id: string) => void;
@@ -339,159 +376,159 @@ function CompareModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
       <div
-        className="relative bg-white rounded-3xl overflow-hidden flex flex-col"
-        style={{
-          width: cols === 2 ? 760 : 1040,
-          maxHeight: "90vh",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-        }}
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={(e) => e.target === e.currentTarget && onClose()}
       >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-8 py-5 border-b" style={{ borderColor: "#e9efed" }}>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#006a63" }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 4H14M2 8H10M2 12H12" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>공고 비교</P>
-            <span
-              className="px-2.5 py-1 rounded-full text-xs font-bold"
-              style={{ backgroundColor: categoryColor[policies[0].category].bg, color: categoryColor[policies[0].category].text, fontFamily: "Pretendard, sans-serif" }}
-            >
+        <div
+            className="relative bg-white rounded-3xl overflow-hidden flex flex-col"
+            style={{
+              width: cols === 2 ? 760 : 1040,
+              maxHeight: "90vh",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+            }}
+        >
+          {/* Modal Header */}
+          <div className="flex items-center justify-between px-8 py-5 border-b" style={{ borderColor: "#e9efed" }}>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#006a63" }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 4H14M2 8H10M2 12H12" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </div>
+              <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>공고 비교</P>
+              <span
+                  className="px-2.5 py-1 rounded-full text-xs font-bold"
+                  style={{ backgroundColor: categoryColor[policies[0].category].bg, color: categoryColor[policies[0].category].text, fontFamily: "Pretendard, sans-serif" }}
+              >
               {policies[0].category} · {cols}개 비교
             </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
-            style={{ background: "none", border: "none", cursor: "pointer" }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1 1L13 13M13 1L1 13" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className="overflow-y-auto flex-1">
-          {/* Policy Title Row */}
-          <div
-            className="grid gap-px sticky top-0 z-10"
-            style={{ gridTemplateColumns: `160px repeat(${cols}, 1fr)`, backgroundColor: "#e9efed" }}
-          >
-            <div className="bg-slate-50 px-5 py-4">
-              <P style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>항목</P>
             </div>
-            {policies.map((p) => (
-              <div key={p.id} className="bg-white px-5 py-4">
+            <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
+                style={{ background: "none", border: "none", cursor: "pointer" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1L13 13M13 1L1 13" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="overflow-y-auto flex-1">
+            {/* Policy Title Row */}
+            <div
+                className="grid gap-px sticky top-0 z-10"
+                style={{ gridTemplateColumns: `160px repeat(${cols}, 1fr)`, backgroundColor: "#e9efed" }}
+            >
+              <div className="bg-slate-50 px-5 py-4">
+                <P style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>항목</P>
+              </div>
+              {policies.map((p) => (
+                  <div key={p.id} className="bg-white px-5 py-4">
                 <span
-                  className="inline-block px-2 py-0.5 rounded-full text-xs mb-2"
-                  style={{ backgroundColor: categoryColor[p.category].bg, color: categoryColor[p.category].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
+                    className="inline-block px-2 py-0.5 rounded-full text-xs mb-2"
+                    style={{ backgroundColor: categoryColor[p.category].bg, color: categoryColor[p.category].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
                 >
                   {p.category}
                 </span>
-                <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c", lineHeight: 1.4 }}>{p.title}</P>
-                <P style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{p.org}</P>
-              </div>
-            ))}
-          </div>
-
-          {/* Deadline Row */}
-          <div
-            className="grid gap-px"
-            style={{ gridTemplateColumns: `160px repeat(${cols}, 1fr)`, backgroundColor: "#e9efed" }}
-          >
-            <div className="bg-slate-50 px-5 py-4 flex items-center">
-              <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>마감일</P>
-            </div>
-            {policies.map((p) => (
-              <div key={p.id} className="bg-white px-5 py-4">
-                <P
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: p.deadline === "상시" ? "#006a63" : parseInt(p.deadline.replace("D-", "")) <= 7 ? "#ba1a1a" : "#f97316",
-                  }}
-                >
-                  {p.deadline}
-                </P>
-              </div>
-            ))}
-          </div>
-
-          {/* Data Rows */}
-          {compareFields.map((field, i) => (
-            <div
-              key={field.key}
-              className="grid gap-px"
-              style={{
-                gridTemplateColumns: `160px repeat(${cols}, 1fr)`,
-                backgroundColor: "#e9efed",
-              }}
-            >
-              <div className="px-5 py-4 flex items-start" style={{ backgroundColor: i % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
-                <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>{field.label}</P>
-              </div>
-              {policies.map((p) => (
-                <div key={p.id} className="bg-white px-5 py-4">
-                  {field.key === "amount" ? (
-                    <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63" }}>{p[field.key]}</P>
-                  ) : (
-                    <P style={{ fontSize: 14, color: "#171d1c", lineHeight: 1.5 }}>{p[field.key]}</P>
-                  )}
-                </div>
+                    <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c", lineHeight: 1.4 }}>{p.title}</P>
+                    <P style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{p.org}</P>
+                  </div>
               ))}
             </div>
-          ))}
-        </div>
 
-        {/* CTA Row */}
-        <div
-          className="grid gap-px border-t"
-          style={{ gridTemplateColumns: `160px repeat(${cols}, 1fr)`, backgroundColor: "#e9efed", borderColor: "#e9efed" }}
-        >
-          <div className="bg-slate-50 px-5 py-5 flex items-center">
-            <P style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>일정 추가</P>
-          </div>
-          {policies.map((p) => (
-            <div key={p.id} className="bg-white px-5 py-5">
-              {scheduled.has(p.id) ? (
-                <div
-                  className="h-11 rounded-xl flex items-center justify-center gap-2"
-                  style={{ backgroundColor: "#f0fdf4", border: "1px solid #16a34a" }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <circle cx="8" cy="8" r="7" fill="#16a34a" />
-                    <path d="M5 8L7 10.5L11 5.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <P style={{ fontSize: 13, color: "#16a34a", fontWeight: 700 }}>일정 등록 완료</P>
-                </div>
-              ) : (
-                <button
-                  className="w-full h-11 rounded-xl flex items-center justify-center gap-2 transition-all hover:opacity-90"
-                  style={{ backgroundColor: "#006a63", border: "none", cursor: "pointer" }}
-                  onClick={() => handleSchedule(p.id)}
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <rect x="1" y="2" width="14" height="13" rx="2" stroke="white" strokeWidth="1.3" />
-                    <path d="M5 1V3.5M11 1V3.5M1 6H15" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
-                    <path d="M5 9.5H8M5 12H7" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
-                  </svg>
-                  <P style={{ fontSize: 13, fontWeight: 700, color: "white" }}>지원 일정 관리하기</P>
-                </button>
-              )}
+            {/* Deadline Row */}
+            <div
+                className="grid gap-px"
+                style={{ gridTemplateColumns: `160px repeat(${cols}, 1fr)`, backgroundColor: "#e9efed" }}
+            >
+              <div className="bg-slate-50 px-5 py-4 flex items-center">
+                <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>마감일</P>
+              </div>
+              {policies.map((p) => (
+                  <div key={p.id} className="bg-white px-5 py-4">
+                    <P
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: p.deadline === "상시" ? "#006a63" : parseInt(p.deadline.replace("D-", "")) <= 7 ? "#ba1a1a" : "#f97316",
+                        }}
+                    >
+                      {p.deadline}
+                    </P>
+                  </div>
+              ))}
             </div>
-          ))}
+
+            {/* Data Rows */}
+            {compareFields.map((field, i) => (
+                <div
+                    key={field.key}
+                    className="grid gap-px"
+                    style={{
+                      gridTemplateColumns: `160px repeat(${cols}, 1fr)`,
+                      backgroundColor: "#e9efed",
+                    }}
+                >
+                  <div className="px-5 py-4 flex items-start" style={{ backgroundColor: i % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
+                    <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>{field.label}</P>
+                  </div>
+                  {policies.map((p) => (
+                      <div key={p.id} className="bg-white px-5 py-4">
+                        {field.key === "amount" ? (
+                            <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63" }}>{p[field.key]}</P>
+                        ) : (
+                            <P style={{ fontSize: 14, color: "#171d1c", lineHeight: 1.5 }}>{p[field.key]}</P>
+                        )}
+                      </div>
+                  ))}
+                </div>
+            ))}
+          </div>
+
+          {/* CTA Row */}
+          <div
+              className="grid gap-px border-t"
+              style={{ gridTemplateColumns: `160px repeat(${cols}, 1fr)`, backgroundColor: "#e9efed", borderColor: "#e9efed" }}
+          >
+            <div className="bg-slate-50 px-5 py-5 flex items-center">
+              <P style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>일정 추가</P>
+            </div>
+            {policies.map((p) => (
+                <div key={p.id} className="bg-white px-5 py-5">
+                  {scheduled.has(p.id) ? (
+                      <div
+                          className="h-11 rounded-xl flex items-center justify-center gap-2"
+                          style={{ backgroundColor: "#f0fdf4", border: "1px solid #16a34a" }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <circle cx="8" cy="8" r="7" fill="#16a34a" />
+                          <path d="M5 8L7 10.5L11 5.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <P style={{ fontSize: 13, color: "#16a34a", fontWeight: 700 }}>일정 등록 완료</P>
+                      </div>
+                  ) : (
+                      <button
+                          className="w-full h-11 rounded-xl flex items-center justify-center gap-2 transition-all hover:opacity-90"
+                          style={{ backgroundColor: "#006a63", border: "none", cursor: "pointer" }}
+                          onClick={() => handleSchedule(p.id)}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <rect x="1" y="2" width="14" height="13" rx="2" stroke="white" strokeWidth="1.3" />
+                          <path d="M5 1V3.5M11 1V3.5M1 6H15" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                          <path d="M5 9.5H8M5 12H7" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                        </svg>
+                        <P style={{ fontSize: 13, fontWeight: 700, color: "white" }}>지원 일정 관리하기</P>
+                      </button>
+                  )}
+                </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
   );
 }
 
@@ -503,7 +540,12 @@ interface MyPageProps {
 
 export function MyPage({ onNavigate }: MyPageProps) {
   const { data: user } = useAuthUser();
+  const { data: profile } = useProfile();
+  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
+  const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
   const { data: scrappedPolicies = [] } = useScrappedPolicies();
+  const { data: calendarEvents = [] } = useCalendarEvents();
+  const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
 
   // 비교 선택은 Zustand store에서 가져와 페이지 이동 후에도 유지된다
   const selected = useCompareStore((s) => s.selectedIds);
@@ -521,6 +563,28 @@ export function MyPage({ onNavigate }: MyPageProps) {
     "7": 2,
     "2": 0,
   });
+
+  const firstEventDate = calendarEvents.length > 0
+      ? new Date(calendarEvents[0].eventStartAt)
+      : new Date();
+  const calendarYear = firstEventDate.getFullYear();
+  const calendarMonth = firstEventDate.getMonth() + 1;
+  const firstDayOfMonth = new Date(calendarYear, calendarMonth - 1, 1).getDay();
+  const calendarDays = buildCalendarDays(calendarEvents, calendarYear, calendarMonth);
+  const registeredPolicyIds = new Set(calendarEvents.map((event) => event.policyId));
+
+  const totalBenefitAmount = benefitSummary?.totalBenefitAmount ?? 0;
+  const totalBenefitManwon = Math.floor(totalBenefitAmount / 10000);
+  const formattedTotalBenefitAmount = totalBenefitAmount.toLocaleString();
+  const serviceBenefits = benefitSummary?.serviceBenefits ?? [];
+
+  const handleSchedulePolicy = (id: string) => {
+    createCalendarEventMutation.mutate(id, {
+      onSuccess: () => {
+        setScheduledIds((prev) => new Set([...prev, id]));
+      },
+    });
+  };
 
   // Profile state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -544,8 +608,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
     setProfileData((prev) => ({
       ...prev,
       interests: prev.interests.includes(category)
-        ? prev.interests.filter((i) => i !== category)
-        : [...prev.interests, category],
+          ? prev.interests.filter((i) => i !== category)
+          : [...prev.interests, category],
     }));
   };
 
@@ -556,8 +620,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   /* derive locked category from first selection */
   const lockedCategory = selected.length > 0
-    ? scrappedPolicies.find((p) => p.id === selected[0])?.category
-    : null;
+      ? scrappedPolicies.find((p) => p.id === selected[0])?.category
+      : null;
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -582,1015 +646,664 @@ export function MyPage({ onNavigate }: MyPageProps) {
   }));
 
   return (
-    <div className="min-h-screen pt-16" style={{ backgroundColor: "#f8fafb" }}>
-      <main className="max-w-[1280px] mx-auto px-6 py-10 pb-32">
-        {/* Page Header */}
-        <div className="flex flex-col gap-1 mb-6">
-          <h1 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 32, color: "#171d1c", margin: 0 }}>마이페이지</h1>
-          <P style={{ color: "#3c4947", fontSize: 16 }}>관심 있는 정책을 비교하고 지원 일정을 체계적으로 관리하세요.</P>
-        </div>
+      <div className="min-h-screen pt-16" style={{ backgroundColor: "#f8fafb" }}>
+        <main className="max-w-[1280px] mx-auto px-6 py-10 pb-32">
+          {/* Page Header */}
+          <div className="flex flex-col gap-1 mb-6">
+            <h1 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 32, color: "#171d1c", margin: 0 }}>마이페이지</h1>
+            <P style={{ color: "#3c4947", fontSize: 16 }}>관심 있는 정책을 비교하고 지원 일정을 체계적으로 관리하세요.</P>
+          </div>
 
-        {/* User Profile Card */}
-        <div className="flex items-center gap-4 mb-8 p-5 bg-white rounded-2xl border" style={{ borderColor: "rgba(226,232,240,0.8)", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-          <div className="w-14 h-14 rounded-full border-2 overflow-hidden flex-shrink-0" style={{ borderColor: "#4fd1c5" }}>
-            <img src={imgUserAvatar} alt="User" className="w-full h-full object-cover" />
-          </div>
-          <div>
-            <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>{user?.name ?? "청년"}</P>
-            <P style={{ fontSize: 14, color: "#64748b" }}>만 26세 · 서울 강남구 · 구직 중</P>
-          </div>
-          <div className="ml-auto flex gap-6">
-            {[{ label: "스크랩", value: "28" }, { label: "지원 완료", value: "5" }, { label: "수혜 금액", value: "342만원" }].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <P style={{ fontSize: 18, fontWeight: 700, color: "#006a63" }}>{stat.value}</P>
-                <P style={{ fontSize: 12, color: "#64748b" }}>{stat.label}</P>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Main Tabs */}
-        <div className="sticky top-16 z-10 mb-6 border-b" style={{ backgroundColor: "rgba(248,250,251,0.95)", backdropFilter: "blur(2px)", borderColor: "#e3e9e7" }}>
-          <div className="flex gap-6">
-            {[
-              { id: "scraps", label: "스크랩함" },
-              { id: "management", label: "지원 관리" },
-              { id: "profile", label: "개인 정보 수정" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => { setMainTab(tab.id as typeof mainTab); clearSelection(); }}
-                className="relative py-3 text-lg transition-colors"
-                style={{
-                  fontFamily: "Pretendard, sans-serif",
-                  fontWeight: mainTab === tab.id ? 700 : 400,
-                  color: mainTab === tab.id ? "#006a63" : "#3c4947",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  borderBottom: mainTab === tab.id ? "2px solid #006a63" : "2px solid transparent",
-                  marginBottom: -1,
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Scrap Tab ── */}
-        {mainTab === "scraps" && (
-          <div className="flex flex-col gap-10">
-            {/* Guide hint */}
-            <div className="flex items-center gap-2 px-4 py-3 rounded-xl" style={{ backgroundColor: "rgba(79,209,197,0.08)", border: "1px solid rgba(79,209,197,0.2)" }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" stroke="#006a63" strokeWidth="1.3" />
-                <path d="M8 5V8.5M8 10.5V11" stroke="#006a63" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
-              <P style={{ fontSize: 14, color: "#006a63" }}>
-                같은 카테고리의 공고를 <strong>최대 3개</strong>까지 선택해 비교할 수 있어요.
-              </P>
+          {/* User Profile Card */}
+          <div className="flex items-center gap-4 mb-8 p-5 bg-white rounded-2xl border" style={{ borderColor: "rgba(226,232,240,0.8)", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div className="w-14 h-14 rounded-full border-2 overflow-hidden flex-shrink-0" style={{ borderColor: "#4fd1c5" }}>
+              <img src={imgUserAvatar} alt="User" className="w-full h-full object-cover" />
             </div>
+            <div>
+              <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>{user?.name ?? "청년"}</P>
+              <P style={{ fontSize: 14, color: "#64748b" }}>만 26세 · 서울 강남구 · 구직 중</P>
+            </div>
+            <div className="ml-auto flex gap-6">
+              {[
+                { label: "스크랩", value: "28" },
+                { label: "지원 완료", value: "5" },
+                { label: "수혜 금액", value: isBenefitSummaryLoading ? "..." : `${totalBenefitManwon.toLocaleString()}만원` },
+              ].map((stat) => (
+                  <div key={stat.label} className="text-center">
+                    <P style={{ fontSize: 18, fontWeight: 700, color: "#006a63" }}>{stat.value}</P>
+                    <P style={{ fontSize: 12, color: "#64748b" }}>{stat.label}</P>
+                  </div>
+              ))}
+            </div>
+          </div>
 
-            {groupedByCategory.map(({ category, policies }) => (
-              <div key={category}>
-                {/* Category Header */}
-                <div className="flex items-center gap-2 mb-4">
+          {/* Main Tabs */}
+          <div className="sticky top-16 z-10 mb-6 border-b" style={{ backgroundColor: "rgba(248,250,251,0.95)", backdropFilter: "blur(2px)", borderColor: "#e3e9e7" }}>
+            <div className="flex gap-6">
+              {[
+                { id: "scraps", label: "스크랩함" },
+                { id: "management", label: "지원 관리" },
+                { id: "profile", label: "개인 정보 수정" },
+              ].map((tab) => (
+                  <button
+                      key={tab.id}
+                      onClick={() => { setMainTab(tab.id as typeof mainTab); clearSelection(); }}
+                      className="relative py-3 text-lg transition-colors"
+                      style={{
+                        fontFamily: "Pretendard, sans-serif",
+                        fontWeight: mainTab === tab.id ? 700 : 400,
+                        color: mainTab === tab.id ? "#006a63" : "#3c4947",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        borderBottom: mainTab === tab.id ? "2px solid #006a63" : "2px solid transparent",
+                        marginBottom: -1,
+                      }}
+                  >
+                    {tab.label}
+                  </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Scrap Tab ── */}
+          {mainTab === "scraps" && (
+              <div className="flex flex-col gap-10">
+                {/* Guide hint */}
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl" style={{ backgroundColor: "rgba(79,209,197,0.08)", border: "1px solid rgba(79,209,197,0.2)" }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="7" stroke="#006a63" strokeWidth="1.3" />
+                    <path d="M8 5V8.5M8 10.5V11" stroke="#006a63" strokeWidth="1.4" strokeLinecap="round" />
+                  </svg>
+                  <P style={{ fontSize: 14, color: "#006a63" }}>
+                    같은 카테고리의 공고를 <strong>최대 3개</strong>까지 선택해 비교할 수 있어요.
+                  </P>
+                </div>
+
+                {groupedByCategory.map(({ category, policies }) => (
+                    <div key={category}>
+                      {/* Category Header */}
+                      <div className="flex items-center gap-2 mb-4">
                   <span
-                    className="px-3 py-1 rounded-full text-sm font-bold"
-                    style={{ backgroundColor: categoryColor[category].bg, color: categoryColor[category].text, fontFamily: "Pretendard, sans-serif" }}
+                      className="px-3 py-1 rounded-full text-sm font-bold"
+                      style={{ backgroundColor: categoryColor[category].bg, color: categoryColor[category].text, fontFamily: "Pretendard, sans-serif" }}
                   >
                     {category}
                   </span>
-                  <P style={{ fontSize: 14, color: "#94a3b8" }}>{policies.length}건 스크랩됨</P>
-                  {lockedCategory && lockedCategory !== category && (
-                    <P style={{ fontSize: 12, color: "#94a3b8", marginLeft: 4 }}>— {lockedCategory} 카테고리 선택 중</P>
-                  )}
-                </div>
+                        <P style={{ fontSize: 14, color: "#94a3b8" }}>{policies.length}건 스크랩됨</P>
+                        {lockedCategory && lockedCategory !== category && (
+                            <P style={{ fontSize: 12, color: "#94a3b8", marginLeft: 4 }}>— {lockedCategory} 카테고리 선택 중</P>
+                        )}
+                      </div>
 
-                <div className="grid grid-cols-3 gap-5">
-                  {policies.map((p) => {
-                    const isSelected = selected.includes(p.id);
-                    const isDisabled = !!(lockedCategory && p.category !== lockedCategory);
-                    const isFull = selected.length >= 3 && !isSelected;
+                      <div className="grid grid-cols-3 gap-5">
+                        {policies.map((p) => {
+                          const isSelected = selected.includes(p.id);
+                          const isDisabled = !!(lockedCategory && p.category !== lockedCategory);
+                          const isFull = selected.length >= 3 && !isSelected;
+                          const isScheduled = scheduledIds.has(p.id) || registeredPolicyIds.has(p.id);
 
-                    return (
-                      <div
-                        key={p.id}
-                        className="bg-white rounded-2xl border flex flex-col transition-all"
-                        style={{
-                          borderColor: isSelected
-                            ? categoryColor[category].border
-                            : "rgba(187,201,199,0.4)",
-                          boxShadow: isSelected ? `0 0 0 2px ${categoryColor[category].border}` : "none",
-                          opacity: isDisabled ? 0.4 : 1,
-                          cursor: isDisabled ? "not-allowed" : "default",
-                        }}
-                      >
-                        {/* Select Button Row */}
-                        <div
-                          className="flex items-center justify-between px-5 pt-4 pb-3 border-b"
-                          style={{ borderColor: "#f1f5f9" }}
-                        >
-                          <button
-                            className="flex items-center gap-2 transition-all"
-                            disabled={isDisabled || (isFull && !isSelected)}
-                            onClick={(e) => toggleSelect(p.id, e)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: isDisabled || (isFull && !isSelected) ? "not-allowed" : "pointer",
-                              padding: 0,
-                            }}
-                          >
-                            <div
-                              className="w-5 h-5 rounded flex items-center justify-center transition-all flex-shrink-0"
-                              style={{
-                                backgroundColor: isSelected ? categoryColor[category].text : "white",
-                                border: `2px solid ${isSelected ? categoryColor[category].text : "#cbd5e1"}`,
-                              }}
-                            >
-                              {isSelected && (
-                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                  <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              )}
-                            </div>
-                            <P style={{ fontSize: 13, fontWeight: isSelected ? 700 : 400, color: isSelected ? categoryColor[category].text : "#64748b" }}>
-                              {isSelected ? "선택됨" : "선택"}
-                            </P>
-                          </button>
+                          return (
+                              <div
+                                  key={p.id}
+                                  className="bg-white rounded-2xl border flex flex-col transition-all"
+                                  style={{
+                                    borderColor: isSelected
+                                        ? categoryColor[category].border
+                                        : "rgba(187,201,199,0.4)",
+                                    boxShadow: isSelected ? `0 0 0 2px ${categoryColor[category].border}` : "none",
+                                    opacity: isDisabled ? 0.4 : 1,
+                                    cursor: isDisabled ? "not-allowed" : "default",
+                                  }}
+                              >
+                                {/* Select Button Row */}
+                                <div
+                                    className="flex items-center justify-between px-5 pt-4 pb-3 border-b"
+                                    style={{ borderColor: "#f1f5f9" }}
+                                >
+                                  <button
+                                      className="flex items-center gap-2 transition-all"
+                                      disabled={isDisabled || (isFull && !isSelected)}
+                                      onClick={(e) => toggleSelect(p.id, e)}
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        cursor: isDisabled || (isFull && !isSelected) ? "not-allowed" : "pointer",
+                                        padding: 0,
+                                      }}
+                                  >
+                                    <div
+                                        className="w-5 h-5 rounded flex items-center justify-center transition-all flex-shrink-0"
+                                        style={{
+                                          backgroundColor: isSelected ? categoryColor[category].text : "white",
+                                          border: `2px solid ${isSelected ? categoryColor[category].text : "#cbd5e1"}`,
+                                        }}
+                                    >
+                                      {isSelected && (
+                                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                            <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                          </svg>
+                                      )}
+                                    </div>
+                                    <P style={{ fontSize: 13, fontWeight: isSelected ? 700 : 400, color: isSelected ? categoryColor[category].text : "#64748b" }}>
+                                      {isSelected ? "선택됨" : "선택"}
+                                    </P>
+                                  </button>
 
-                          <P style={{ fontSize: 13, fontWeight: 700, color: p.deadline === "상시" ? "#006a63" : "#ba1a1a" }}>
-                            {p.deadline}
-                          </P>
-                        </div>
+                                  <P style={{ fontSize: 13, fontWeight: 700, color: p.deadline === "상시" ? "#006a63" : "#ba1a1a" }}>
+                                    {p.deadline}
+                                  </P>
+                                </div>
 
-                        {/* Card Body */}
-                        <div
-                          className="p-5 flex flex-col flex-1 cursor-pointer hover:bg-slate-50 transition-colors rounded-b-2xl"
-                          onClick={() => setDetailPolicyId(p.id)}
-                        >
-                          <P style={{ fontSize: 17, fontWeight: 600, color: "#171d1c", lineHeight: 1.4, marginBottom: 6 }}>{p.title}</P>
-                          <P style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{p.org}</P>
-                          <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.amount}</P>
-                          <P style={{ fontSize: 13, color: "#3c4947" }}>지원규모: {p.support}</P>
+                                {/* Card Body */}
+                                <div
+                                    className="p-5 flex flex-col flex-1 cursor-pointer hover:bg-slate-50 transition-colors rounded-b-2xl"
+                                    onClick={() => setDetailPolicyId(p.id)}
+                                >
+                                  <P style={{ fontSize: 17, fontWeight: 600, color: "#171d1c", lineHeight: 1.4, marginBottom: 6 }}>{p.title}</P>
+                                  <P style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{p.org}</P>
+                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.amount}</P>
+                                  <P style={{ fontSize: 13, color: "#3c4947" }}>지원규모: {p.support}</P>
 
-                          <div className="flex items-center justify-between mt-4 pt-3 border-t" style={{ borderColor: "#e9efed" }}>
-                            <P style={{ fontSize: 13, color: "#006a63", fontWeight: 500 }}>상세보기 →</P>
-                            {scheduledIds.has(p.id) && (
-                              <span className="flex items-center gap-1 text-xs" style={{ color: "#16a34a", fontFamily: "Pretendard, sans-serif" }}>
+                                  <div className="flex items-center justify-between mt-4 pt-3 border-t" style={{ borderColor: "#e9efed" }}>
+                                    <P style={{ fontSize: 13, color: "#006a63", fontWeight: 500 }}>상세보기 →</P>
+                                    {isScheduled && (
+                                        <span className="flex items-center gap-1 text-xs" style={{ color: "#16a34a", fontFamily: "Pretendard, sans-serif" }}>
                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                                   <circle cx="6" cy="6" r="5" fill="#16a34a" />
                                   <path d="M3.5 6L5 7.5L8.5 4" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
                                 </svg>
                                 일정 등록됨
                               </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Management Tab ── */}
-        {mainTab === "management" && (
-          <div className="flex flex-col gap-6">
-            <div className="flex gap-2 p-1 rounded-xl self-start" style={{ backgroundColor: "#eff5f3" }}>
-              {[
-                { id: "calendar", label: "캘린더 뷰" },
-                { id: "dashboard", label: "대시보드 뷰" },
-                { id: "policy", label: "정책별 관리" },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setSubTab(t.id as typeof subTab)}
-                  className="px-6 py-2 rounded-lg text-base transition-all"
-                  style={{
-                    fontFamily: "Pretendard, sans-serif",
-                    fontWeight: 400,
-                    backgroundColor: subTab === t.id ? "white" : "transparent",
-                    color: subTab === t.id ? "#006a63" : "#3c4947",
-                    border: "none",
-                    cursor: "pointer",
-                    boxShadow: subTab === t.id ? "0 1px 1px rgba(0,0,0,0.05)" : "none",
-                  }}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {subTab === "dashboard" && (
-              <div className="flex flex-col gap-8">
-                <div className="rounded-2xl p-8" style={{ backgroundColor: "rgba(255,255,255,0.9)", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <P style={{ fontSize: 24, fontWeight: 700, color: "#171d1c" }}>지원 현황 요약</P>
-                      <P style={{ fontSize: 14, color: "#3c4947", marginTop: 2 }}>추천부터 수혜까지의 단계를 한눈에 확인하세요.</P>
-                    </div>
-                    <div className="flex gap-2">
-                      {["전체", "주거", "일자리", "복지"].map((f, i) => (
-                        <button key={f} className="px-4 py-2 rounded-full text-sm" style={{ fontFamily: "Pretendard, sans-serif", backgroundColor: i === 0 ? "#006a63" : "#eff5f3", color: i === 0 ? "white" : "#3c4947", border: "none", cursor: "pointer", fontWeight: 500 }}>
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-8">
-                    {/* Left: Funnel Chart - 60% */}
-                    <div className="flex flex-col gap-3" style={{ width: "60%" }}>
-                      {funnelData.map((item) => (
-                        <div key={item.label} className="flex items-center gap-6">
-                          <div className="flex-1 flex justify-end">
-                            <div className="h-10 rounded-lg" style={{ width: `${(item.value / 45) * 100}%`, backgroundColor: item.color, minWidth: 40 }} />
-                          </div>
-                          <div className="flex items-center gap-3" style={{ minWidth: 180 }}>
-                            <div className="h-px w-8" style={{ backgroundColor: "#bbc9c7" }} />
-                            <P style={{ fontSize: 14, fontWeight: 700, color: "#171d1c", whiteSpace: "nowrap" }}>{item.label}</P>
-                            <P style={{ fontSize: 16, color: "#006a63", marginLeft: "auto" }}>{item.value}</P>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Right: Status Cards Container - 40% */}
-                    <div style={{ width: "40%" }}>
-                      <div className="rounded-2xl p-5" style={{ backgroundColor: "rgba(0,106,99,0.04)", border: "1.5px solid rgba(0,106,99,0.15)" }}>
-                        <div className="flex items-center gap-2 mb-4">
-                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                            <circle cx="9" cy="9" r="8" stroke="#006a63" strokeWidth="1.5" />
-                            <path d="M9 5V9.5L12 11.5" stroke="#006a63" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                          <P style={{ fontSize: 13, fontWeight: 700, color: "#006a63", letterSpacing: "0.3px" }}>현재 진행 중인 내용</P>
-                        </div>
-                        <div className="flex flex-col gap-3">
-                          {[
-                            { label: "지원 필요", sub: "마감 임박 공고", value: "3건", color: "#ba1a1a", bg: "rgba(186,26,26,0.1)" },
-                            { label: "지원 완료", sub: "이번 달 누적", value: "5건", color: "#006a63", bg: "rgba(0,106,99,0.1)" },
-                            { label: "결과 대기", sub: "심사 진행 중", value: "2건", color: "#3b6661", bg: "rgba(59,102,97,0.1)" },
-                          ].map((card) => (
-                            <div key={card.label} className="flex items-center justify-between p-4 rounded-xl bg-white" style={{ border: "1px solid #e9efed" }}>
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: card.bg }}>
-                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <circle cx="8" cy="8" r="7" stroke={card.color} strokeWidth="1.3" />
-                                    <path d="M8 5V8.5L10.5 10" stroke={card.color} strokeWidth="1.3" strokeLinecap="round" />
-                                  </svg>
-                                </div>
-                                <div>
-                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#171d1c", whiteSpace: "nowrap" }}>{card.label}</P>
-                                  <P style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>{card.sub}</P>
-                                </div>
-                              </div>
-                              <P style={{ fontSize: 20, fontWeight: 800, color: card.color, flexShrink: 0 }}>{card.value}</P>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.9)", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-                  <div className="px-8 py-6 border-b" style={{ borderColor: "#e9efed" }}>
-                    <P style={{ fontSize: 24, fontWeight: 700, color: "#171d1c" }}>혜택 리포트</P>
-                    <P style={{ fontSize: 14, color: "#3c4947", marginTop: 2 }}>현재까지 받으신 경제적·물질적 혜택 총계입니다.</P>
-                  </div>
-                  <div className="grid grid-cols-2">
-                    <div className="p-8 border-r flex flex-col justify-center items-center" style={{ borderColor: "#e9efed" }}>
-                      <P style={{ fontSize: 14, fontWeight: 700, color: "#3c4947", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 16 }}>현금성 혜택 현황</P>
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="flex items-baseline gap-2">
-                          <P style={{ fontSize: 56, fontWeight: 800, color: "#006a63", lineHeight: 1 }}>3,420,000</P>
-                          <P style={{ fontSize: 24, fontWeight: 700, color: "#3c4947" }}>원</P>
-                        </div>
-                        <P style={{ fontSize: 14, color: "#64748b", textAlign: "center" }}>
-                          현재까지 받으신 현금성 혜택 총액
-                        </P>
-                      </div>
-                    </div>
-                    <div className="p-8 flex flex-col">
-                      <P style={{ fontSize: 14, fontWeight: 700, color: "#3c4947", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 16 }}>물품 및 서비스 혜택</P>
-                      <div className="flex-1 flex items-center">
-                        <div
-                          className="w-full p-6 rounded-xl"
-                          style={{
-                            backgroundColor: "rgba(0,106,99,0.05)",
-                            border: "1px solid rgba(0,106,99,0.15)"
-                          }}
-                        >
-                          <P style={{ fontSize: 15, color: "#171d1c", lineHeight: 1.8, fontWeight: 400 }}>
-                            면접 정장 대여 <span style={{ fontWeight: 700, color: "#006a63" }}>10회</span> 및 심리상담 <span style={{ fontWeight: 700, color: "#006a63" }}>8회</span> 제공
-                          </P>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {subTab === "calendar" && (
-              <div className="rounded-2xl p-6" style={{ backgroundColor: "rgba(255,255,255,0.9)", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-                <div className="flex items-center justify-between mb-6">
-                  <P style={{ fontSize: 20, fontWeight: 700, color: "#171d1c" }}>2025년 5월</P>
-                  <div className="flex gap-2">
-                    <button style={{ background: "none", border: "1px solid #e3e9e7", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "#3c4947", fontFamily: "Pretendard, sans-serif" }}>‹</button>
-                    <button style={{ background: "none", border: "1px solid #e3e9e7", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "#3c4947", fontFamily: "Pretendard, sans-serif" }}>›</button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-7 mb-2">
-                  {weekDays.map((d) => (
-                    <div key={d} className="text-center py-2">
-                      <P style={{ fontSize: 12, fontWeight: 500, color: "#3c4947" }}>{d}</P>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div key={`e-${i}`} className="h-24 rounded" style={{ border: "1px solid #e3e9e7" }} />
-                  ))}
-                  {calendarDays.map((d) => (
-                    <div key={d.day} className="h-24 rounded-md p-1.5 flex flex-col gap-1" style={{ border: d.today ? "2px solid #006a63" : "1px solid #e3e9e7", backgroundColor: d.today ? "rgba(0,106,99,0.05)" : "transparent" }}>
-                      <div className="flex items-center">
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: d.today ? "#006a63" : "transparent" }}>
-                          <P style={{ fontSize: 12, fontWeight: d.today ? 700 : 500, color: d.today ? "white" : "#171d1c" }}>{d.day}</P>
-                        </div>
-                      </div>
-                      {d.events.map((ev, i) => (
-                        <div key={i} className="rounded px-1 py-0.5" style={{ backgroundColor: ev.color }}>
-                          <P style={{ fontSize: 9, color: ev.textColor, lineHeight: 1.3 }}>{ev.text}</P>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {subTab === "policy" && (
-              <div className="flex gap-6">
-                {/* Left: Policy List - 30% */}
-                <div style={{ width: "30%" }} className="flex flex-col gap-3">
-                  {managedPolicies.map((p) => {
-                    const ddayColor = p.dday <= 7 ? "#ba1a1a" : p.dday <= 14 ? "#f97316" : "#006a63";
-                    const ddayBg = p.dday <= 7 ? "rgba(186,26,26,0.1)" : p.dday <= 14 ? "rgba(249,115,22,0.1)" : "rgba(0,106,99,0.1)";
-
-                    return (
-                      <div
-                        key={p.id}
-                        className="bg-white rounded-2xl p-5 cursor-pointer transition-all border"
-                        style={{
-                          borderColor: selectedPolicyId === p.id ? "#006a63" : "rgba(226,232,240,0.8)",
-                          boxShadow: selectedPolicyId === p.id ? "0 0 0 2px rgba(0,106,99,0.2)" : "0 2px 8px rgba(0,0,0,0.05)",
-                          backgroundColor: selectedPolicyId === p.id ? "rgba(0,106,99,0.02)" : "white",
-                        }}
-                        onClick={() => setSelectedPolicyId(p.id)}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <span
-                            className="px-2.5 py-1 rounded-full text-xs"
-                            style={{ backgroundColor: p.statusBg, color: p.statusColor, fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
-                          >
-                            {p.status}
-                          </span>
-                          {selectedPolicyId === p.id && (
-                            <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#006a63" }}>
-                              <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-
-                        <P style={{ fontSize: 16, fontWeight: 600, color: "#171d1c", marginBottom: 6, lineHeight: 1.4 }}>{p.title}</P>
-                        <P style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>{p.org}</P>
-
-                        {/* D-day Badge */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div
-                            className="px-3 py-1.5 rounded-lg flex items-center gap-2"
-                            style={{ backgroundColor: ddayBg }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <circle cx="7" cy="7" r="6" stroke={ddayColor} strokeWidth="1.2" />
-                              <path d="M7 3.5V7L9 9" stroke={ddayColor} strokeWidth="1.2" strokeLinecap="round" />
-                            </svg>
-                            <P style={{ fontSize: 13, fontWeight: 700, color: ddayColor }}>D-{p.dday}</P>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1">
-                            <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#eff5f3" }}>
-                              <div className="h-full rounded-full transition-all" style={{ width: `${p.progress}%`, backgroundColor: p.statusColor }} />
-                            </div>
-                          </div>
-                          <P style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{p.progress}%</P>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Right: Policy Detail - 70% */}
-                <div style={{ width: "70%" }}>
-                  {(() => {
-                    const selectedPolicy = managedPolicies.find((p) => p.id === selectedPolicyId);
-                    if (!selectedPolicy) return null;
-
-                    const completedDocs = selectedPolicy.documents.filter(d => d.checked).length;
-                    const totalDocs = selectedPolicy.documents.length;
-                    const currentStep = policyJourneySteps[selectedPolicy.id] || 0;
-
-                    const journeySteps = [
-                      { label: "지원 필요", icon: "📝" },
-                      { label: "지원 완료", icon: "✅" },
-                      { label: "결과 대기", icon: "⏳" },
-                      { label: "수혜 완료", icon: "🎉" },
-                    ];
-
-                    const updateJourneyStep = (step: number) => {
-                      setPolicyJourneySteps((prev) => ({
-                        ...prev,
-                        [selectedPolicy.id]: step,
-                      }));
-                    };
-
-                    return (
-                      <div className="bg-white rounded-2xl p-6 sticky top-24" style={{ border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-                        {/* Header */}
-                        <div className="pb-4 mb-5 border-b" style={{ borderColor: "#e9efed" }}>
-                          <P style={{ fontSize: 20, fontWeight: 700, color: "#171d1c", marginBottom: 4 }}>{selectedPolicy.title}</P>
-                          <P style={{ fontSize: 13, color: "#64748b" }}>{selectedPolicy.org}</P>
-                        </div>
-
-                        {/* Journey Steps */}
-                        <div className="mb-6">
-                          <div className="flex items-center gap-2 mb-4">
-                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                              <path d="M2 9H16M16 9L12 5M16 9L12 13" stroke="#006a63" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            <P style={{ fontSize: 16, fontWeight: 700, color: "#171d1c" }}>지원 여정</P>
-                          </div>
-
-                          <div className="flex items-center justify-between relative">
-                            {/* Progress Line */}
-                            <div
-                              className="absolute top-6 left-0 right-0 h-1 rounded-full"
-                              style={{ backgroundColor: "#e9efed", zIndex: 0, marginLeft: "12px", marginRight: "12px" }}
-                            >
-                              <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  backgroundColor: "#006a63",
-                                  width: `${(currentStep / (journeySteps.length - 1)) * 100}%`,
-                                }}
-                              />
-                            </div>
-
-                            {/* Journey Steps */}
-                            {journeySteps.map((step, idx) => {
-                              const isCompleted = idx <= currentStep;
-                              const isActive = idx === currentStep;
-
-                              return (
-                                <div
-                                  key={idx}
-                                  className="flex flex-col items-center gap-2 cursor-pointer transition-all relative"
-                                  style={{ flex: 1, zIndex: 1 }}
-                                  onClick={() => updateJourneyStep(idx)}
-                                >
-                                  <div
-                                    className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
-                                    style={{
-                                      backgroundColor: isCompleted ? "#006a63" : "white",
-                                      border: `3px solid ${isCompleted ? "#006a63" : "#e9efed"}`,
-                                      boxShadow: isActive ? "0 0 0 4px rgba(0,106,99,0.1)" : "none",
-                                      transform: isActive ? "scale(1.1)" : "scale(1)",
-                                    }}
-                                  >
-                                    {isCompleted ? (
-                                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                        <path d="M4 10L8 14L16 6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                      </svg>
-                                    ) : (
-                                      <P style={{ fontSize: 18 }}>{step.icon}</P>
                                     )}
                                   </div>
-                                  <P
-                                    style={{
-                                      fontSize: 12,
-                                      fontWeight: isCompleted ? 700 : 500,
-                                      color: isCompleted ? "#006a63" : "#94a3b8",
-                                      textAlign: "center",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    {step.label}
-                                  </P>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Schedule Section */}
-                        <div className="mb-6">
-                          <div className="flex items-center gap-2 mb-3">
-                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                              <rect x="2" y="3" width="14" height="13" rx="2" stroke="#006a63" strokeWidth="1.3" />
-                              <path d="M6 1V5M12 1V5M2 7H16" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" />
-                            </svg>
-                            <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c" }}>일정 관리</P>
-                          </div>
-                          <div className="flex flex-col gap-3">
-                            <div className="p-3 rounded-lg" style={{ backgroundColor: "rgba(245,251,248,0.8)", border: "1px solid rgba(187,201,199,0.3)" }}>
-                              <P style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>마감일</P>
-                              <P style={{ fontSize: 15, fontWeight: 700, color: selectedPolicy.progress === 0 ? "#ba1a1a" : "#006a63" }}>{selectedPolicy.deadline}</P>
-                            </div>
-                            {selectedPolicy.submittedDate && (
-                              <div className="p-3 rounded-lg" style={{ backgroundColor: "rgba(245,251,248,0.8)", border: "1px solid rgba(187,201,199,0.3)" }}>
-                                <P style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>지원 완료일</P>
-                                <P style={{ fontSize: 15, fontWeight: 700, color: "#006a63" }}>{selectedPolicy.submittedDate}</P>
                               </div>
-                            )}
-                          </div>
-                        </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                ))}
+              </div>
+          )}
 
-                        {/* Documents Checklist */}
-                        <div className="mb-6">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                                <path d="M11 2H4C3.44772 2 3 2.44772 3 3V15C3 15.5523 3.44772 16 4 16H14C14.5523 16 15 15.5523 15 15V6L11 2Z" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M11 2V6H15" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                              <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c" }}>지원 서류</P>
-                            </div>
-                            <span
-                              className="px-2 py-1 rounded-full text-xs"
-                              style={{ backgroundColor: completedDocs === totalDocs ? "rgba(0,106,99,0.1)" : "rgba(186,26,26,0.1)", color: completedDocs === totalDocs ? "#006a63" : "#ba1a1a", fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
-                            >
-                              {completedDocs}/{totalDocs}
-                            </span>
+          {/* ── Management Tab ── */}
+          {mainTab === "management" && (
+              <div className="flex flex-col gap-6">
+                <div className="flex gap-2 p-1 rounded-xl self-start" style={{ backgroundColor: "#eff5f3" }}>
+                  {[
+                    { id: "calendar", label: "캘린더 뷰" },
+                    { id: "dashboard", label: "대시보드 뷰" },
+                    { id: "policy", label: "정책별 관리" },
+                  ].map((t) => (
+                      <button
+                          key={t.id}
+                          onClick={() => setSubTab(t.id as typeof subTab)}
+                          className="px-6 py-2 rounded-lg text-base transition-all"
+                          style={{
+                            fontFamily: "Pretendard, sans-serif",
+                            fontWeight: 400,
+                            backgroundColor: subTab === t.id ? "white" : "transparent",
+                            color: subTab === t.id ? "#006a63" : "#3c4947",
+                            border: "none",
+                            cursor: "pointer",
+                            boxShadow: subTab === t.id ? "0 1px 1px rgba(0,0,0,0.05)" : "none",
+                          }}
+                      >
+                        {t.label}
+                      </button>
+                  ))}
+                </div>
+
+                {subTab === "dashboard" && (
+                    <div className="flex flex-col gap-8">
+                      <div className="rounded-2xl p-8" style={{ backgroundColor: "rgba(255,255,255,0.9)", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+                        <div className="flex items-center justify-between mb-8">
+                          <div>
+                            <P style={{ fontSize: 24, fontWeight: 700, color: "#171d1c" }}>지원 현황 요약</P>
+                            <P style={{ fontSize: 14, color: "#3c4947", marginTop: 2 }}>추천부터 수혜까지의 단계를 한눈에 확인하세요.</P>
                           </div>
-                          <div className="flex flex-col gap-2">
-                            {selectedPolicy.documents.map((doc, idx) => (
-                              <div
-                                key={idx}
-                                className="flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-slate-50"
-                                style={{ border: "1px solid rgba(226,232,240,0.8)" }}
-                              >
-                                <div
-                                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-all"
-                                  style={{
-                                    backgroundColor: doc.checked ? "#006a63" : "white",
-                                    border: `2px solid ${doc.checked ? "#006a63" : "#cbd5e1"}`,
-                                  }}
-                                >
-                                  {doc.checked && (
-                                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                  )}
-                                </div>
-                                <P style={{ fontSize: 14, color: doc.checked ? "#171d1c" : "#64748b", textDecoration: doc.checked ? "line-through" : "none" }}>{doc.name}</P>
-                              </div>
+                          <div className="flex gap-2">
+                            {["전체", "주거", "일자리", "복지"].map((f, i) => (
+                                <button key={f} className="px-4 py-2 rounded-full text-sm" style={{ fontFamily: "Pretendard, sans-serif", backgroundColor: i === 0 ? "#006a63" : "#eff5f3", color: i === 0 ? "white" : "#3c4947", border: "none", cursor: "pointer", fontWeight: 500 }}>
+                                  {f}
+                                </button>
                             ))}
                           </div>
                         </div>
+                        <div className="flex gap-8">
+                          {/* Left: Funnel Chart - 60% */}
+                          <div className="flex flex-col gap-3" style={{ width: "60%" }}>
+                            {funnelData.map((item) => (
+                                <div key={item.label} className="flex items-center gap-6">
+                                  <div className="flex-1 flex justify-end">
+                                    <div className="h-10 rounded-lg" style={{ width: `${(item.value / 45) * 100}%`, backgroundColor: item.color, minWidth: 40 }} />
+                                  </div>
+                                  <div className="flex items-center gap-3" style={{ minWidth: 180 }}>
+                                    <div className="h-px w-8" style={{ backgroundColor: "#bbc9c7" }} />
+                                    <P style={{ fontSize: 14, fontWeight: 700, color: "#171d1c", whiteSpace: "nowrap" }}>{item.label}</P>
+                                    <P style={{ fontSize: 16, color: "#006a63", marginLeft: "auto" }}>{item.value}</P>
+                                  </div>
+                                </div>
+                            ))}
+                          </div>
 
-                        {/* Action Button */}
-                        <button
-                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all hover:opacity-90"
-                          style={{ backgroundColor: "white", border: "1.5px solid #006a63", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-                          onClick={() => window.open(`https://example.com/policy/${selectedPolicy.id}`, '_blank')}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
-                            <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                          원본 공고 보러가기
-                        </button>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Profile Tab ── */}
-        {mainTab === "profile" && (
-          <div className="max-w-4xl mx-auto">
-            <div className="rounded-2xl p-8 flex flex-col gap-8" style={{ backgroundColor: "white", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-              {/* Section: 기본 정보 */}
-              <div>
-                <div className="flex items-center gap-2 pb-4 mb-6 border-b" style={{ borderColor: "#e9efed" }}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="7" r="4" stroke="#006a63" strokeWidth="1.5"/>
-                    <path d="M4 18C4 14.6863 6.68629 12 10 12C13.3137 12 16 14.6863 16 18" stroke="#006a63" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                  <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>기본 정보</P>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-                  {/* 유저 아이디 */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>유저 아이디</P>
-                    <input
-                      type="text"
-                      value={profileData.userId}
-                      onChange={(e) => setProfileData({ ...profileData, userId: e.target.value })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
-                    />
-                  </div>
-
-                  {/* 나이 */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>나이</P>
-                    <input
-                      type="number"
-                      value={profileData.age}
-                      onChange={(e) => setProfileData({ ...profileData, age: parseInt(e.target.value) })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
-                    />
-                  </div>
-
-                  {/* 성별 */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>성별</P>
-                    <select
-                      value={profileData.gender}
-                      onChange={(e) => setProfileData({ ...profileData, gender: e.target.value })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                    >
-                      <option value="남성">남성</option>
-                      <option value="여성">여성</option>
-                      <option value="기타">기타</option>
-                    </select>
-                  </div>
-
-                  {/* 거주지 (시/도) */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>거주지 (시/도)</P>
-                    <select
-                      value={profileData.region}
-                      onChange={(e) => setProfileData({ ...profileData, region: e.target.value })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                    >
-                      <option value="서울특별시">서울특별시</option>
-                      <option value="경기도">경기도</option>
-                      <option value="인천광역시">인천광역시</option>
-                      <option value="부산광역시">부산광역시</option>
-                      <option value="대구광역시">대구광역시</option>
-                    </select>
-                  </div>
-
-                  {/* 거주지 (구/군) */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>거주지 (구/군)</P>
-                    <input
-                      type="text"
-                      value={profileData.district}
-                      onChange={(e) => setProfileData({ ...profileData, district: e.target.value })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
-                      placeholder="예: 강남구"
-                    />
-                  </div>
-
-                  {/* 최종 학력 */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>최종 학력</P>
-                    <select
-                      value={profileData.education}
-                      onChange={(e) => setProfileData({ ...profileData, education: e.target.value })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                    >
-                      <option value="고등학교 졸업">고등학교 졸업</option>
-                      <option value="대학교 재학">대학교 재학</option>
-                      <option value="대학교 졸업">대학교 졸업</option>
-                      <option value="대학원 재학">대학원 재학</option>
-                      <option value="대학원 졸업">대학원 졸업</option>
-                    </select>
-                  </div>
-
-                  {/* 취업 상태 */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>취업 상태</P>
-                    <select
-                      value={profileData.employmentStatus}
-                      onChange={(e) => setProfileData({ ...profileData, employmentStatus: e.target.value })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                    >
-                      <option value="구직 중">구직 중</option>
-                      <option value="재직 중">재직 중</option>
-                      <option value="자영업">자영업</option>
-                      <option value="프리랜서">프리랜서</option>
-                      <option value="학생">학생</option>
-                    </select>
-                  </div>
-
-                  {/* 연소득 */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>연소득 (만원)</P>
-                    <input
-                      type="number"
-                      value={profileData.annualIncome}
-                      onChange={(e) => setProfileData({ ...profileData, annualIncome: parseInt(e.target.value) })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "text" : "not-allowed" }}
-                      placeholder="예: 2500"
-                    />
-                  </div>
-
-                  {/* 자산현황 */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>자산현황</P>
-                    <select
-                      value={profileData.assets}
-                      onChange={(e) => setProfileData({ ...profileData, assets: e.target.value })}
-                      disabled={!isEditingProfile}
-                      className="w-full px-4 py-3 rounded-lg border"
-                      style={{ fontFamily: "Pretendard, sans-serif", fontSize: 15, borderColor: "#e9efed", outline: "none", backgroundColor: isEditingProfile ? "white" : "#f8fafc", cursor: isEditingProfile ? "pointer" : "not-allowed" }}
-                    >
-                      <option value="5,000만원 미만">5,000만원 미만</option>
-                      <option value="5,000만원 이상 ~ 1억원 미만">5,000만원 이상 ~ 1억원 미만</option>
-                      <option value="1억원 이상 ~ 3억원 미만">1억원 이상 ~ 3억원 미만</option>
-                      <option value="3억원 이상">3억원 이상</option>
-                    </select>
-                  </div>
-
-                  {/* 프로필 생성 일시 */}
-                  <div>
-                    <P style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>프로필 생성 일시</P>
-                    <div className="w-full px-4 py-3 rounded-lg border" style={{ backgroundColor: "#f8fafc", borderColor: "#e9efed" }}>
-                      <P style={{ fontSize: 15, color: "#64748b" }}>{profileData.createdAt}</P>
-                    </div>
-                  </div>
-
-                  {/* 장애 유무 - Full width toggle */}
-                  <div className="col-span-2">
-                    <div className="flex items-center justify-between p-4 rounded-lg border" style={{ borderColor: "#e9efed", backgroundColor: isEditingProfile ? "white" : "#f8fafc" }}>
-                      <P style={{ fontSize: 15, color: "#171d1c", fontWeight: 500 }}>장애 유무</P>
-                      <button
-                        onClick={() => isEditingProfile && setProfileData({ ...profileData, hasDisability: !profileData.hasDisability })}
-                        disabled={!isEditingProfile}
-                        className="relative w-12 h-6 rounded-full transition-all"
-                        style={{
-                          backgroundColor: profileData.hasDisability ? "#006a63" : "#cbd5e1",
-                          border: "none",
-                          cursor: isEditingProfile ? "pointer" : "not-allowed",
-                          opacity: isEditingProfile ? 1 : 0.6,
-                        }}
-                      >
-                        <div
-                          className="absolute w-5 h-5 rounded-full bg-white transition-all"
-                          style={{
-                            top: "2px",
-                            left: profileData.hasDisability ? "26px" : "2px",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                          }}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section: 관심 카테고리 */}
-              <div>
-                <div className="flex items-center gap-2 pb-4 mb-6 border-b" style={{ borderColor: "#e9efed" }}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 2L12.5 7.5L18 8.5L14 13L15 18.5L10 15.5L5 18.5L6 13L2 8.5L7.5 7.5L10 2Z" stroke="#006a63" strokeWidth="1.5" strokeLinejoin="round"/>
-                  </svg>
-                  <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>관심 카테고리</P>
-                </div>
-
-                <div className="flex gap-4">
-                  {(["주거", "일자리", "복지"] as const).map((category) => {
-                    const isSelected = profileData.interests.includes(category);
-                    const colors: Record<string, { bg: string; text: string; border: string }> = {
-                      주거: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
-                      일자리: { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
-                      복지: { bg: "#faf5ff", text: "#9333ea", border: "#e9d5ff" },
-                    };
-
-                    return (
-                      <button
-                        key={category}
-                        onClick={() => toggleInterest(category)}
-                        disabled={!isEditingProfile}
-                        className="flex-1 py-4 rounded-xl transition-all"
-                        style={{
-                          backgroundColor: isSelected ? colors[category].bg : (isEditingProfile ? "white" : "#f8fafc"),
-                          border: `2px solid ${isSelected ? colors[category].border : "#e9efed"}`,
-                          cursor: isEditingProfile ? "pointer" : "not-allowed",
-                          fontFamily: "Pretendard, sans-serif",
-                          fontSize: 15,
-                          fontWeight: isSelected ? 700 : 500,
-                          color: isSelected ? colors[category].text : "#64748b",
-                          opacity: isEditingProfile ? 1 : 0.7,
-                        }}
-                      >
-                        <div className="flex items-center justify-center gap-2">
-                          {isSelected && (
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                              <circle cx="8" cy="8" r="7" fill={colors[category].text} />
-                              <path d="M5 8L7 10L11 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                          {category}
+                          {/* Right: Status Cards Container - 40% */}
+                          <div style={{ width: "40%" }}>
+                            <div className="rounded-2xl p-5" style={{ backgroundColor: "rgba(0,106,99,0.04)", border: "1.5px solid rgba(0,106,99,0.15)" }}>
+                              <div className="flex items-center gap-2 mb-4">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                  <circle cx="9" cy="9" r="8" stroke="#006a63" strokeWidth="1.5" />
+                                  <path d="M9 5V9.5L12 11.5" stroke="#006a63" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                                <P style={{ fontSize: 13, fontWeight: 700, color: "#006a63", letterSpacing: "0.3px" }}>현재 진행 중인 내용</P>
+                              </div>
+                              <div className="flex flex-col gap-3">
+                                {[
+                                  { label: "지원 필요", sub: "마감 임박 공고", value: "3건", color: "#ba1a1a", bg: "rgba(186,26,26,0.1)" },
+                                  { label: "지원 완료", sub: "이번 달 누적", value: "5건", color: "#006a63", bg: "rgba(0,106,99,0.1)" },
+                                  { label: "결과 대기", sub: "심사 진행 중", value: "2건", color: "#3b6661", bg: "rgba(59,102,97,0.1)" },
+                                ].map((card) => (
+                                    <div key={card.label} className="flex items-center justify-between p-4 rounded-xl bg-white" style={{ border: "1px solid #e9efed" }}>
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: card.bg }}>
+                                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                            <circle cx="8" cy="8" r="7" stroke={card.color} strokeWidth="1.3" />
+                                            <path d="M8 5V8.5L10.5 10" stroke={card.color} strokeWidth="1.3" strokeLinecap="round" />
+                                          </svg>
+                                        </div>
+                                        <div>
+                                          <P style={{ fontSize: 14, fontWeight: 700, color: "#171d1c", whiteSpace: "nowrap" }}>{card.label}</P>
+                                          <P style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>{card.sub}</P>
+                                        </div>
+                                      </div>
+                                      <P style={{ fontSize: 20, fontWeight: 800, color: card.color, flexShrink: 0 }}>{card.value}</P>
+                                    </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              {isEditingProfile ? (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setIsEditingProfile(false)}
-                    className="flex-1 py-4 rounded-xl text-base font-bold transition-all hover:bg-slate-100"
-                    style={{ backgroundColor: "white", color: "#64748b", border: "2px solid #e9efed", cursor: "pointer", fontFamily: "Pretendard, sans-serif" }}
-                  >
-                    취소
-                  </button>
-                  <button
-                    onClick={handleSaveProfile}
-                    className="flex-1 py-4 rounded-xl text-base font-bold transition-all hover:opacity-90"
-                    style={{ backgroundColor: "#006a63", color: "white", border: "none", cursor: "pointer", fontFamily: "Pretendard, sans-serif", boxShadow: "0 4px 12px rgba(0,106,99,0.25)" }}
-                  >
-                    변경사항 저장
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsEditingProfile(true)}
-                  className="w-full py-4 rounded-xl text-base font-bold transition-all hover:opacity-90"
-                  style={{ backgroundColor: "#006a63", color: "white", border: "none", cursor: "pointer", fontFamily: "Pretendard, sans-serif", boxShadow: "0 4px 12px rgba(0,106,99,0.25)" }}
-                >
-                  정보 수정하기
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* ── Floating Compare Bar ── */}
-      {mainTab === "scraps" && (
-        <div
-          className="fixed bottom-6 z-40 transition-all duration-300"
-          style={{
-            left: "50%",
-            transform: `translateX(-50%) translateY(${selected.length === 0 ? "8px" : "0px"})`,
-            opacity: selected.length > 0 ? 1 : 0.9,
-          }}
-        >
-          <div
-            className="flex items-center gap-4 px-6 py-4 rounded-2xl"
-            style={{
-              backgroundColor: "#006a63",
-              boxShadow: "0 8px 32px rgba(0,106,99,0.35), 0 2px 8px rgba(0,0,0,0.15)",
-              border: "1px solid rgba(79,209,197,0.3)",
-              minWidth: 420,
-            }}
-          >
-            {/* Left: info */}
-            <div className="flex items-center gap-3 flex-1">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: selected.length === 0 ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.25)" }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M2 4H14M2 8H10M2 12H12" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </div>
-
-              {selected.length === 0 ? (
-                <P style={{ fontSize: 14, color: "rgba(255,255,255,0.85)" }}>공고를 선택해 비교해보세요</P>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <P style={{ fontSize: 14, color: "white", fontWeight: 600 }}>
-                    {lockedCategory && (
-                      <span
-                        className="inline-block px-2 py-0.5 rounded-full text-xs mr-2"
-                        style={{ backgroundColor: "rgba(255,255,255,0.95)", color: categoryColor[lockedCategory].text, fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
-                      >
-                        {lockedCategory}
-                      </span>
-                    )}
-                    {selected.length}개 선택됨
-                  </P>
-                  <span
-                    className="px-2 py-0.5 rounded-full text-xs font-bold"
-                    style={{ backgroundColor: "rgba(255,255,255,0.25)", color: "white", fontFamily: "Pretendard, sans-serif", border: "1px solid rgba(255,255,255,0.4)" }}
-                  >
-                    {selected.length}/3
-                  </span>
-
-                  {/* Selected pills */}
-                  <div className="flex gap-1 ml-1">
-                    {selectedPolicies.map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs"
-                        style={{ backgroundColor: "rgba(255,255,255,0.2)", fontFamily: "Pretendard, sans-serif", color: "white", border: "1px solid rgba(255,255,255,0.3)" }}
-                      >
-                        {p.title.slice(0, 8)}…
-                        <button
-                          onClick={(e) => toggleSelect(p.id, e)}
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "rgba(255,255,255,0.9)", lineHeight: 1, fontWeight: 700 }}
-                        >
-                          ×
-                        </button>
                       </div>
-                    ))}
-                  </div>
+
+                      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.9)", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+                        <div className="px-8 py-6 border-b" style={{ borderColor: "#e9efed" }}>
+                          <P style={{ fontSize: 24, fontWeight: 700, color: "#171d1c" }}>혜택 리포트</P>
+                          <P style={{ fontSize: 14, color: "#3c4947", marginTop: 2 }}>현재까지 받으신 경제적·물질적 혜택 총계입니다.</P>
+                        </div>
+                        <div className="grid grid-cols-2">
+                          <div className="p-8 border-r flex flex-col justify-center items-center" style={{ borderColor: "#e9efed" }}>
+                            <P style={{ fontSize: 14, fontWeight: 700, color: "#3c4947", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 16 }}>현금성 혜택 현황</P>
+                            <div className="flex flex-col items-center gap-3">
+                              <div className="flex items-baseline gap-2">
+                                <P style={{ fontSize: 56, fontWeight: 800, color: "#006a63", lineHeight: 1 }}>
+                                  {isBenefitSummaryLoading ? "..." : formattedTotalBenefitAmount}
+                                </P>
+                                <P style={{ fontSize: 24, fontWeight: 700, color: "#3c4947" }}>원</P>
+                              </div>
+                              <P style={{ fontSize: 14, color: "#64748b", textAlign: "center" }}>
+                                현재까지 받으신 현금성 혜택 총액
+                              </P>
+                            </div>
+                          </div>
+                          <div className="p-8 flex flex-col">
+                            <P style={{ fontSize: 14, fontWeight: 700, color: "#3c4947", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 16 }}>물품 및 서비스 혜택</P>
+                            <div className="flex-1 flex items-center">
+                              <div
+                                  className="w-full p-6 rounded-xl"
+                                  style={{
+                                    backgroundColor: "rgba(0,106,99,0.05)",
+                                    border: "1px solid rgba(0,106,99,0.15)"
+                                  }}
+                              >
+                                {serviceBenefits.length > 0 ? (
+                                    <div className="flex flex-col gap-3">
+                                      {serviceBenefits.map((benefit, index) => (
+                                          <div key={`${benefit.benefitItem ?? "benefit"}-${index}`} className="flex flex-col gap-1">
+                                            <P style={{ fontSize: 15, color: "#171d1c", lineHeight: 1.6, fontWeight: 700 }}>
+                                              {benefit.benefitItem ?? benefit.benefitType ?? "서비스 혜택"}
+                                            </P>
+                                            <P style={{ fontSize: 14, color: "#3c4947", lineHeight: 1.6, fontWeight: 400 }}>
+                                              {benefit.effectSummary ?? "상세 혜택 정보가 집계되었습니다."}
+                                            </P>
+                                          </div>
+                                      ))}
+                                    </div>
+                                ) : (
+                                    <P style={{ fontSize: 15, color: "#64748b", lineHeight: 1.8, fontWeight: 400 }}>
+                                      아직 집계된 물품 및 서비스 혜택이 없습니다.
+                                    </P>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                )}
+
+                {subTab === "calendar" && (
+                    <div className="rounded-2xl p-6" style={{ backgroundColor: "rgba(255,255,255,0.9)", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+                      <div className="flex items-center justify-between mb-6">
+                        <P style={{ fontSize: 20, fontWeight: 700, color: "#171d1c" }}>{calendarYear}년 {calendarMonth}월</P>
+                        <div className="flex gap-2">
+                          <button style={{ background: "none", border: "1px solid #e3e9e7", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "#3c4947", fontFamily: "Pretendard, sans-serif" }}>‹</button>
+                          <button style={{ background: "none", border: "1px solid #e3e9e7", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "#3c4947", fontFamily: "Pretendard, sans-serif" }}>›</button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-7 mb-2">
+                        {weekDays.map((d) => (
+                            <div key={d} className="text-center py-2">
+                              <P style={{ fontSize: 12, fontWeight: 500, color: "#3c4947" }}>{d}</P>
+                            </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {Array.from({ length: firstDayOfMonth }, (_, i) => (
+                            <div key={`e-${i}`} className="h-24 rounded" style={{ border: "1px solid #e3e9e7" }} />
+                        ))}
+                        {calendarDays.map((d) => (
+                            <div key={d.day} className="h-24 rounded-md p-1.5 flex flex-col gap-1" style={{ border: d.today ? "2px solid #006a63" : "1px solid #e3e9e7", backgroundColor: d.today ? "rgba(0,106,99,0.05)" : "transparent" }}>
+                              <div className="flex items-center">
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: d.today ? "#006a63" : "transparent" }}>
+                                  <P style={{ fontSize: 12, fontWeight: d.today ? 700 : 500, color: d.today ? "white" : "#171d1c" }}>{d.day}</P>
+                                </div>
+                              </div>
+                              {d.events.map((ev, i) => (
+                                  <div key={i} className="rounded px-1 py-0.5" style={{ backgroundColor: ev.color }}>
+                                    <P style={{ fontSize: 9, color: ev.textColor, lineHeight: 1.3 }}>{ev.text}</P>
+                                  </div>
+                              ))}
+                            </div>
+                        ))}
+                      </div>
+                    </div>
+                )}
+
+                {subTab === "policy" && (
+                    <div className="flex gap-6">
+                      {/* Left: Policy List - 30% */}
+                      <div style={{ width: "30%" }} className="flex flex-col gap-3">
+                        {managedPolicies.map((p) => {
+                          const ddayColor = p.dday <= 7 ? "#ba1a1a" : p.dday <= 14 ? "#f97316" : "#006a63";
+                          const ddayBg = p.dday <= 7 ? "rgba(186,26,26,0.1)" : p.dday <= 14 ? "rgba(249,115,22,0.1)" : "rgba(0,106,99,0.1)";
+
+                          return (
+                              <div
+                                  key={p.id}
+                                  className="bg-white rounded-2xl p-5 cursor-pointer transition-all border"
+                                  style={{
+                                    borderColor: selectedPolicyId === p.id ? "#006a63" : "rgba(226,232,240,0.8)",
+                                    boxShadow: selectedPolicyId === p.id ? "0 0 0 2px rgba(0,106,99,0.2)" : "0 2px 8px rgba(0,0,0,0.05)",
+                                    backgroundColor: selectedPolicyId === p.id ? "rgba(0,106,99,0.02)" : "white",
+                                  }}
+                                  onClick={() => setSelectedPolicyId(p.id)}
+                              >
+                                <div className="flex items-start justify-between mb-3">
+                          <span
+                              className="px-2.5 py-1 rounded-full text-xs"
+                              style={{ backgroundColor: p.statusBg, color: p.statusColor, fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
+                          >
+                            {p.status}
+                          </span>
+                                  {selectedPolicyId === p.id && (
+                                      <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#006a63" }}>
+                                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                          <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                      </div>
+                                  )}
+                                </div>
+
+                                <P style={{ fontSize: 16, fontWeight: 600, color: "#171d1c", marginBottom: 6, lineHeight: 1.4 }}>{p.title}</P>
+                                <P style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>{p.org}</P>
+
+                                {/* D-day Badge */}
+                                <div className="flex items-center justify-between mb-3">
+                                  <div
+                                      className="px-3 py-1.5 rounded-lg flex items-center gap-2"
+                                      style={{ backgroundColor: ddayBg }}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                      <circle cx="7" cy="7" r="6" stroke={ddayColor} strokeWidth="1.2" />
+                                      <path d="M7 3.5V7L9 9" stroke={ddayColor} strokeWidth="1.2" strokeLinecap="round" />
+                                    </svg>
+                                    <P style={{ fontSize: 13, fontWeight: 700, color: ddayColor }}>D-{p.dday}</P>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1">
+                                    <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#eff5f3" }}>
+                                      <div className="h-full rounded-full transition-all" style={{ width: `${p.progress}%`, backgroundColor: p.statusColor }} />
+                                    </div>
+                                  </div>
+                                  <P style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{p.progress}%</P>
+                                </div>
+                              </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Right: Policy Detail - 70% */}
+                      <div style={{ width: "70%" }}>
+                        {(() => {
+                          const selectedPolicy = managedPolicies.find((p) => p.id === selectedPolicyId);
+                          if (!selectedPolicy) return null;
+
+                          const completedDocs = selectedPolicy.documents.filter(d => d.checked).length;
+                          const totalDocs = selectedPolicy.documents.length;
+                          const currentStep = policyJourneySteps[selectedPolicy.id] || 0;
+
+                          const journeySteps = [
+                            { label: "지원 필요", icon: "📝" },
+                            { label: "지원 완료", icon: "✅" },
+                            { label: "결과 대기", icon: "⏳" },
+                            { label: "수혜 완료", icon: "🎉" },
+                          ];
+
+                          const updateJourneyStep = (step: number) => {
+                            setPolicyJourneySteps((prev) => ({
+                              ...prev,
+                              [selectedPolicy.id]: step,
+                            }));
+
+                            if ((step === 1 || step === 3) && step !== currentStep) {
+                              triggerTotalBenefitMutation.mutate();
+                            }
+                          };
+
+                          return (
+                              <div className="bg-white rounded-2xl p-6 sticky top-24" style={{ border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+                                {/* Header */}
+                                <div className="pb-4 mb-5 border-b" style={{ borderColor: "#e9efed" }}>
+                                  <P style={{ fontSize: 20, fontWeight: 700, color: "#171d1c", marginBottom: 4 }}>{selectedPolicy.title}</P>
+                                  <P style={{ fontSize: 13, color: "#64748b" }}>{selectedPolicy.org}</P>
+                                </div>
+
+                                {/* Journey Steps */}
+                                <div className="mb-6">
+                                  <div className="flex items-center gap-2 mb-4">
+                                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                      <path d="M2 9H16M16 9L12 5M16 9L12 13" stroke="#006a63" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    <P style={{ fontSize: 16, fontWeight: 700, color: "#171d1c" }}>지원 여정</P>
+                                  </div>
+
+                                  <div className="flex items-center justify-between relative">
+                                    {/* Progress Line */}
+                                    <div
+                                        className="absolute top-6 left-0 right-0 h-1 rounded-full"
+                                        style={{ backgroundColor: "#e9efed", zIndex: 0, marginLeft: "12px", marginRight: "12px" }}
+                                    >
+                                      <div
+                                          className="h-full rounded-full transition-all duration-500"
+                                          style={{
+                                            backgroundColor: "#006a63",
+                                            width: `${(currentStep / (journeySteps.length - 1)) * 100}%`,
+                                          }}
+                                      />
+                                    </div>
+
+                                    {/* Journey Steps */}
+                                    {journeySteps.map((step, idx) => {
+                                      const isCompleted = idx <= currentStep;
+                                      const isActive = idx === currentStep;
+
+                                      return (
+                                          <div
+                                              key={idx}
+                                              className="flex flex-col items-center gap-2 cursor-pointer transition-all relative"
+                                              style={{ flex: 1, zIndex: 1 }}
+                                              onClick={() => updateJourneyStep(idx)}
+                                          >
+                                            <div
+                                                className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+                                                style={{
+                                                  backgroundColor: isCompleted ? "#006a63" : "white",
+                                                  border: `3px solid ${isCompleted ? "#006a63" : "#e9efed"}`,
+                                                  boxShadow: isActive ? "0 0 0 4px rgba(0,106,99,0.1)" : "none",
+                                                  transform: isActive ? "scale(1.1)" : "scale(1)",
+                                                }}
+                                            >
+                                              {isCompleted ? (
+                                                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                                    <path d="M4 10L8 14L16 6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                  </svg>
+                                              ) : (
+                                                  <P style={{ fontSize: 18 }}>{step.icon}</P>
+                                              )}
+                                            </div>
+                                            <P
+                                                style={{
+                                                  fontSize: 12,
+                                                  fontWeight: isCompleted ? 700 : 500,
+                                                  color: isCompleted ? "#006a63" : "#94a3b8",
+                                                  textAlign: "center",
+                                                  whiteSpace: "nowrap",
+                                                }}
+                                            >
+                                              {step.label}
+                                            </P>
+                                          </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Schedule Section */}
+                                <div className="mb-6">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                      <rect x="2" y="3" width="14" height="13" rx="2" stroke="#006a63" strokeWidth="1.3" />
+                                      <path d="M6 1V5M12 1V5M2 7H16" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" />
+                                    </svg>
+                                    <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c" }}>일정 관리</P>
+                                  </div>
+                                  <div className="flex flex-col gap-3">
+                                    <div className="p-3 rounded-lg" style={{ backgroundColor: "rgba(245,251,248,0.8)", border: "1px solid rgba(187,201,199,0.3)" }}>
+                                      <P style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>마감일</P>
+                                      <P style={{ fontSize: 15, fontWeight: 700, color: selectedPolicy.progress === 0 ? "#ba1a1a" : "#006a63" }}>{selectedPolicy.deadline}</P>
+                                    </div>
+                                    {selectedPolicy.submittedDate && (
+                                        <div className="p-3 rounded-lg" style={{ backgroundColor: "rgba(245,251,248,0.8)", border: "1px solid rgba(187,201,199,0.3)" }}>
+                                          <P style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>지원 완료일</P>
+                                          <P style={{ fontSize: 15, fontWeight: 700, color: "#006a63" }}>{selectedPolicy.submittedDate}</P>
+                                        </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Documents Checklist */}
+                                <div className="mb-6">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                        <path d="M11 2H4C3.44772 2 3 2.44772 3 3V15C3 15.5523 3.44772 16 4 16H14C14.5523 16 15 15.5523 15 15V6L11 2Z" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                                        <path d="M11 2V6H15" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                                      </svg>
+                                      <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c" }}>지원 서류</P>
+                                    </div>
+                                    <span
+                                        className="px-2 py-1 rounded-full text-xs"
+                                        style={{ backgroundColor: completedDocs === totalDocs ? "rgba(0,106,99,0.1)" : "rgba(186,26,26,0.1)", color: completedDocs === totalDocs ? "#006a63" : "#ba1a1a", fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
+                                    >
+                              {completedDocs}/{totalDocs}
+                            </span>
+                                  </div>
+                                  <div className="flex flex-col gap-2">
+                                    {selectedPolicy.documents.map((doc, idx) => (
+                                        <div
+                                            key={idx}
+                                            className="flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-slate-50"
+                                            style={{ border: "1px solid rgba(226,232,240,0.8)" }}
+                                        >
+                                          <div
+                                              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-all"
+                                              style={{
+                                                backgroundColor: doc.checked ? "#006a63" : "white",
+                                                border: `2px solid ${doc.checked ? "#006a63" : "#cbd5e1"}`,
+                                              }}
+                                          >
+                                            {doc.checked && (
+                                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                                  <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            )}
+                                          </div>
+                                          <P style={{ fontSize: 14, color: doc.checked ? "#171d1c" : "#64748b", textDecoration: doc.checked ? "line-through" : "none" }}>{doc.name}</P>
+                                        </div>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Action Button */}
+                                <button
+                                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all hover:opacity-90"
+                                    style={{ backgroundColor: "white", border: "1.5px solid #006a63", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                                    onClick={() => window.open(`https://example.com/policy/${selectedPolicy.id}`, '_blank')}
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                    <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
+                                    <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                  원본 공고 보러가기
+                                </button>
+                              </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                )}
+              </div>
+          )}
+
+          {/* ── Profile Tab ── */}
+          {mainTab === "profile" && (
+              <div className="max-w-4xl mx-auto">
+                <div className="rounded-2xl p-8 flex flex-col gap-8" style={{ backgroundColor: "white", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+                  <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>개인 정보 수정</P>
                 </div>
-              )}
-            </div>
+              </div>
+          )}
+        </main>
 
-            {/* Right: buttons */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {selected.length > 0 && (
-                <button
-                  onClick={clearSelection}
-                  className="px-4 py-2 rounded-xl text-sm transition-colors hover:bg-white/10"
-                  style={{ fontFamily: "Pretendard, sans-serif", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", color: "white", cursor: "pointer" }}
-                >
-                  선택 해제
-                </button>
-              )}
-              <button
-                disabled={selected.length < 2}
-                onClick={() => selected.length >= 2 && setShowCompare(true)}
-                className="px-6 py-2 rounded-xl text-sm font-bold transition-all"
-                style={{
-                  fontFamily: "Pretendard, sans-serif",
-                  backgroundColor: selected.length >= 2 ? "white" : "rgba(255,255,255,0.15)",
-                  color: selected.length >= 2 ? "#006a63" : "rgba(255,255,255,0.5)",
-                  border: "none",
-                  cursor: selected.length >= 2 ? "pointer" : "not-allowed",
-                  boxShadow: selected.length >= 2 ? "0 4px 12px rgba(255,255,255,0.25)" : "none",
-                  transform: selected.length >= 2 ? "scale(1.05)" : "scale(1)",
-                }}
-              >
-                비교하기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        {showCompare && (
+            <CompareModal
+                policies={selectedPolicies}
+                onClose={() => setShowCompare(false)}
+                onSchedule={handleSchedulePolicy}
+            />
+        )}
 
-      {/* ── Compare Modal ── */}
-      {showCompare && (
-        <CompareModal
-          policies={selectedPolicies}
-          onClose={() => setShowCompare(false)}
-          onSchedule={(id) => {
-            setScheduledIds((prev) => new Set([...prev, id]));
-          }}
-        />
-      )}
-
-      {/* ── Policy Detail Side Panel ── */}
-      {detailPolicyId && (
-        <PolicyDetailSidePanel
-          policyId={detailPolicyId}
-          policies={scrappedPolicies}
-          onClose={() => setDetailPolicyId(null)}
-          onSchedule={(id) => {
-            setScheduledIds((prev) => new Set([...prev, id]));
-          }}
-        />
-      )}
-    </div>
+        {detailPolicyId && (
+            <PolicyDetailSidePanel
+                policyId={detailPolicyId}
+                policies={scrappedPolicies}
+                onClose={() => setDetailPolicyId(null)}
+                onSchedule={handleSchedulePolicy}
+            />
+        )}
+      </div>
   );
 }
