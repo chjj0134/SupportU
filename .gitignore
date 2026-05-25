@@ -56,6 +56,7 @@ temp/
 **/.env
 **/.env.*
 !frontend/.env
+!frontend/.env.example
 
 ### Gradle generated files ###
 **/build/
