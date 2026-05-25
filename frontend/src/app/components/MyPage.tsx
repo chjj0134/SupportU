@@ -900,9 +900,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
                               </div>
                               <div className="flex flex-col gap-3">
                                 {[
-                                  { label: "지원 필요", sub: "마감 임박 공고", value: "3건", color: "#ba1a1a", bg: "rgba(186,26,26,0.1)" },
-                                  { label: "지원 완료", sub: "이번 달 누적", value: "5건", color: "#006a63", bg: "rgba(0,106,99,0.1)" },
-                                  { label: "결과 대기", sub: "심사 진행 중", value: "2건", color: "#3b6661", bg: "rgba(59,102,97,0.1)" },
+                                  { label: "지원 필요", sub: "마감 임박 공고", value: `${Object.values(policyJourneySteps).filter(s => s === 0).length}건`, color: "#ba1a1a", bg: "rgba(186,26,26,0.1)" },
+                                  { label: "지원 완료", sub: "이번 달 누적", value: `${Object.values(policyJourneySteps).filter(s => s >= 1).length}건`, color: "#006a63", bg: "rgba(0,106,99,0.1)" },
+                                  { label: "결과 대기", sub: "심사 진행 중", value: `${Object.values(policyJourneySteps).filter(s => s === 2).length}건`, color: "#3b6661", bg: "rgba(59,102,97,0.1)" },
                                 ].map((card) => (
                                     <div key={card.label} className="flex items-center justify-between p-4 rounded-xl bg-white" style={{ border: "1px solid #e9efed" }}>
                                       <div className="flex items-center gap-3">
