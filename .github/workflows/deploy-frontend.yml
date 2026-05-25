@@ -34,35 +34,33 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      # 레포 루트에서 pull: .vercel/project.json 과 .vercel/.env.production.local 이 루트에 생성됨
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
       - name: Install dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Pull Vercel environment
-        working-directory: frontend
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-
-      # vercel build --prod 은 CI 환경에서 "spawn sh ENOENT" 오류 발생.
-      # pnpm run build 로 직접 빌드 후 .vercel/output 구조를 수동 생성해 --prebuilt 배포.
       - name: Build
         working-directory: frontend
         run: |
-          if [ -f .vercel/.env.production.local ]; then
-            set -a && source .vercel/.env.production.local && set +a
+          if [ -f ../.vercel/.env.production.local ]; then
+            set -a && source ../.vercel/.env.production.local && set +a
           fi
           pnpm run build
 
+      # .vercel/output 을 레포 루트에 생성: deploy --prebuilt 는 CWD 기준으로 output 을 찾음
       - name: Prepare Vercel output
-        working-directory: frontend
         run: |
           mkdir -p .vercel/output/static
-          cp -r dist/. .vercel/output/static/
+          cp -r frontend/dist/. .vercel/output/static/
           printf '{"version":3,"routes":[{"handle":"filesystem"},{"src":"/((?!api/).*)", "dest":"/index.html"}]}\n' \
             > .vercel/output/config.json
 
+      # 레포 루트에서 deploy: rootDirectory=frontend 경로 중복 문제 해소
       - name: Deploy to Vercel
-        working-directory: frontend
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
