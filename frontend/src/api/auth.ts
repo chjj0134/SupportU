@@ -1,33 +1,22 @@
 import { apiClient, ApiError, NetworkError } from './client';
+import { apiConfig } from './config';
 import type { AuthUser } from './types';
+import { MOCK_USER } from './__mocks__/auth.mock';
 
 /**
  * 인증 모듈.
  *
  * 두 가지 모드를 지원한다:
- * 1. 실제 OAuth2 모드 (VITE_MOCK_AUTH=false)
+ * 1. 실제 OAuth2 모드 (VITE_USE_MOCK=false)
  *    - `/oauth2/authorization/google`로 리다이렉트 → 구글 인증 → 백엔드 세션 → `/api/auth/success`
- * 2. Mock 모드 (VITE_MOCK_AUTH=true)
+ * 2. Mock 모드 (VITE_USE_MOCK=true)
  *    - 백엔드 없이 동일한 UX를 시뮬레이션. 로그인 버튼 클릭 시 localStorage에 플래그 저장 후 홈으로 이동.
  *    - 새로고침 후에도 로그인 상태 유지. 로그아웃 시 플래그 제거.
  *
  * 컴포넌트 코드는 모드를 알 필요가 없도록 같은 함수 시그니처를 유지한다.
  */
 
-const USE_MOCK_AUTH = import.meta.env.VITE_MOCK_AUTH === 'true';
 const MOCK_AUTH_STORAGE_KEY = 'supportu-mock-auth';
-
-const MOCK_USER: AuthUser = {
-  message: '로그인 성공 (mock)',
-  name: '김지원',
-  email: 'mock@supportu.dev',
-  attributes: {
-    sub: 'mock-google-id-12345',
-    name: '김지원',
-    email: 'mock@supportu.dev',
-    picture: '',
-  },
-};
 
 function isMockAuthenticated(): boolean {
   if (typeof window === 'undefined') return false;
@@ -54,7 +43,7 @@ function setMockAuthenticated(value: boolean): void {
  * - 네트워크 에러 → 백엔드 다운. 미로그인으로 처리.
  */
 export async function getAuthUser(): Promise<AuthUser | null> {
-  if (USE_MOCK_AUTH) {
+  if (apiConfig.useMock) {
     return isMockAuthenticated() ? MOCK_USER : null;
   }
 
@@ -83,7 +72,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
  * Mock 모드: localStorage 플래그를 세우고 홈으로 이동해 실제 OAuth 리다이렉트 후 흐름을 시뮬레이션.
  */
 export function initiateGoogleLogin(): void {
-  if (USE_MOCK_AUTH) {
+  if (apiConfig.useMock) {
     setMockAuthenticated(true);
     window.location.href = '/';
     return;
@@ -97,7 +86,7 @@ export function initiateGoogleLogin(): void {
  * 실제 모드: 백엔드 세션 무효화.
  */
 export async function logout(): Promise<void> {
-  if (USE_MOCK_AUTH) {
+  if (apiConfig.useMock) {
     setMockAuthenticated(false);
     window.location.href = '/';
     return;

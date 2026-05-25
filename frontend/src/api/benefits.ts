@@ -1,50 +1,33 @@
 import { apiClient } from './client';
-
-const USE_MOCK_AUTH = import.meta.env.VITE_MOCK_AUTH === 'true';
+import { withMock } from './config';
+import { MOCK_BENEFIT_SUMMARY } from './__mocks__/benefits.mock';
 
 export interface ServiceBenefitResponse {
-    benefitType: string | null;
-    benefitItem: string | null;
-    effectSummary: string | null;
+  benefitType: string | null;
+  benefitItem: string | null;
+  effectSummary: string | null;
 }
 
 export interface BenefitSummaryResponse {
-    totalBenefitAmount: number;
-    benefitPeriodText: string;
-    serviceBenefits: ServiceBenefitResponse[];
+  totalBenefitAmount: number;
+  benefitPeriodText: string;
+  serviceBenefits: ServiceBenefitResponse[];
 }
 
 export interface TotalBenefitRequest {
-    uid: string;
+  uid: string;
 }
 
-export async function getBenefitSummary(userId: string): Promise<BenefitSummaryResponse> {
-    if (USE_MOCK_AUTH) {
-        return {
-            totalBenefitAmount: 3270000,
-            benefitPeriodText: '2024.03 ~ 현재',
-            serviceBenefits: [
-                {
-                    benefitType: '서비스',
-                    benefitItem: '면접 정장 대여',
-                    effectSummary: '면접 정장 대여 10회 제공',
-                },
-                {
-                    benefitType: '상담',
-                    benefitItem: '심리상담',
-                    effectSummary: '심리상담 8회 제공',
-                },
-            ],
-        };
-    }
-
-    return apiClient.get<BenefitSummaryResponse>(`/v1/users/${userId}/benefits/summary`);
+export function getBenefitSummary(userId: string): Promise<BenefitSummaryResponse> {
+  return withMock(
+    () => MOCK_BENEFIT_SUMMARY,
+    () => apiClient.get<BenefitSummaryResponse>(`/v1/users/${userId}/benefits/summary`),
+  );
 }
 
-export async function triggerTotalBenefit(request: TotalBenefitRequest): Promise<void> {
-    if (USE_MOCK_AUTH) {
-        return;
-    }
-
-    return apiClient.post<void>('/orchestrator/total-benefit', request);
+export function triggerTotalBenefit(request: TotalBenefitRequest): Promise<void> {
+  return withMock(
+    () => { console.info('[mock] triggerTotalBenefit', request.uid); },
+    () => apiClient.post<void>('/orchestrator/total-benefit', request),
+  );
 }

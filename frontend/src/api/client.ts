@@ -1,4 +1,6 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+import { apiConfig } from './config';
+
+const BASE_URL = apiConfig.baseUrl;
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 // HTTP 응답을 받았으나 상태 코드가 실패인 경우 (4xx, 5xx)

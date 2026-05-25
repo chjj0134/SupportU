@@ -1,0 +1,43 @@
+import type { CalendarEvent } from '../calendar';
+
+export const MOCK_CALENDAR_EVENTS: CalendarEvent[] = [
+  {
+    cid: 1,
+    policyId: '1',
+    title: '2025 청년 월세 지원사업',
+    org: '서울주택도시공사(SH)',
+    category: 'Housing',
+    applyStatus: 'APPLIED',
+    eventStartAt: '2025-06-30T00:00:00',
+    eventEndAt: '2025-06-30T23:59:59',
+    reminderAt: '2025-06-27T09:00:00',
+    googleEventId: null,
+    googleEventLink: null,
+  },
+  {
+    cid: 2,
+    policyId: '2',
+    title: '청년 일자리 도약 장려금',
+    org: '고용노동부',
+    category: 'Jobs',
+    applyStatus: 'BOOKMARKED',
+    eventStartAt: '2025-07-07T00:00:00',
+    eventEndAt: '2025-07-07T23:59:59',
+    reminderAt: '2025-07-04T09:00:00',
+    googleEventId: null,
+    googleEventLink: null,
+  },
+  {
+    cid: 3,
+    policyId: '3',
+    title: '청년 마음건강 바우처',
+    org: '보건복지부',
+    category: 'Welfare',
+    applyStatus: 'BOOKMARKED',
+    eventStartAt: '2025-07-12T00:00:00',
+    eventEndAt: '2025-07-12T23:59:59',
+    reminderAt: '2025-07-09T09:00:00',
+    googleEventId: null,
+    googleEventLink: null,
+  },
+];
