@@ -7,15 +7,7 @@ import { usePolicyFiltersStore } from "../../stores/usePolicyFiltersStore";
 import { P } from "./common/Typography";
 import { Spinner } from "./common/Spinner";
 import { ErrorMessage } from "./common/ErrorMessage";
-import { getCategoryStyle, getDeadlineColor } from "../../constants/categories";
-
-const categoryColor = {
-  Housing: { bg: getCategoryStyle("Housing").bg, text: getCategoryStyle("Housing").text },
-  Jobs: { bg: getCategoryStyle("Jobs").bg, text: getCategoryStyle("Jobs").text },
-  Welfare: { bg: getCategoryStyle("Welfare").bg, text: getCategoryStyle("Welfare").text },
-};
-
-const deadlineColor = getDeadlineColor;
+import { getCategoryStyle } from "../../constants/categories";
 
 /* ─────────────────────────── Policy Detail Side Panel ─────────────────────────── */
 
@@ -94,7 +86,7 @@ function PolicyDetailSidePanel({
               <div className="flex items-center gap-2 mb-3">
                 <span
                   className="px-2.5 py-1 rounded text-xs"
-                  style={{ backgroundColor: categoryColor[policy.category].bg, color: categoryColor[policy.category].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
+                  style={{ backgroundColor: getCategoryStyle(policy.category).bg, color: getCategoryStyle(policy.category).text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
                 >
                   {policy.categoryKr}
                 </span>
@@ -417,7 +409,7 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
               {/* Gradient corner */}
               <div
                 className="absolute top-0 right-0 w-32 h-32 rounded-bl-full opacity-50"
-                style={{ background: `linear-gradient(135deg, ${categoryColor[policy.category]?.bg || "#f1f5f9"} 0%, transparent 100%)` }}
+                style={{ background: `linear-gradient(135deg, ${getCategoryStyle(policy.category).bg} 0%, transparent 100%)` }}
               />
 
               <div className="relative">
