@@ -44,9 +44,23 @@ jobs:
         working-directory: frontend
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
+      # vercel build --prod 은 CI 환경에서 "spawn sh ENOENT" 오류 발생.
+      # pnpm run build 로 직접 빌드 후 .vercel/output 구조를 수동 생성해 --prebuilt 배포.
       - name: Build
         working-directory: frontend
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -f .vercel/.env.production.local ]; then
+            set -a && source .vercel/.env.production.local && set +a
+          fi
+          pnpm run build
+
+      - name: Prepare Vercel output
+        working-directory: frontend
+        run: |
+          mkdir -p .vercel/output/static
+          cp -r dist/. .vercel/output/static/
+          printf '{"version":3,"routes":[{"handle":"filesystem"},{"src":"/((?!api/).*)", "dest":"/index.html"}]}\n' \
+            > .vercel/output/config.json
 
       - name: Deploy to Vercel
         working-directory: frontend
