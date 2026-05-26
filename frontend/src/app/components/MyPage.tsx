@@ -469,9 +469,11 @@ function CompareModal({
 }
 
 function applyStatusToStep(status: string): number {
-  if (status === 'completed') return 3;
-  if (status === 'waiting') return 2;
-  if (status === 'applied' || status === 'apply_now') return 1;
+  if (!status) return 0;
+  const normalized = status.toLowerCase();
+  if (normalized === 'completed') return 3;
+  if (normalized === 'waiting') return 2;
+  if (normalized === 'applied' || normalized === 'apply_now') return 1;
   return 0;
 }
 function genderApiToDisplay(gender: string | undefined | null): string {
