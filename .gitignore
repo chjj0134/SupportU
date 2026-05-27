@@ -55,7 +55,6 @@ temp/
 **/application-*.local.yml
 **/.env
 **/.env.*
-!frontend/.env
 
 ### Gradle generated files ###
 **/build/
