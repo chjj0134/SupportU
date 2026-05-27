@@ -55,7 +55,6 @@ export interface PolicyDetail {
   target: string;
   method: string;
   eligibility?: EligibilityItem[];
-  detailUrl?: string | null;
 }
 
 // Checklist
