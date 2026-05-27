@@ -1,5 +1,5 @@
-import { useState } from "react";
-import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
+import { useState, useEffect, useMemo, useRef } from "react";
+import imgUserAvatar from "../../assets/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import type { ScrappedPolicy } from "../../api/policies";
 import type { CalendarEvent } from "../../api/calendar";
 import { useScrappedPolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
@@ -32,73 +32,7 @@ const compareFields: { key: keyof ScrappedPolicy; label: string }[] = [
   { key: "method", label: "신청 방법" },
 ];
 
-const funnelData = [
-  { label: "맞춤 추천", value: 45, color: "#80cbc4" },
-  { label: "스크랩", value: 28, color: "#26a69a" },
-  { label: "일정 등록", value: 12, color: "#00897b" },
-  { label: "지원 완료", value: 5, color: "#00695c" },
-  { label: "수혜 완료", value: 2, color: "#004d40" },
-];
 
-const managedPolicies = [
-  {
-    id: "1",
-    title: "청년 월세 특별지원",
-    status: "지원 완료",
-    statusColor: "#006a63",
-    statusBg: "rgba(0,106,99,0.1)",
-    progress: 100,
-    org: "국토교통부",
-    deadline: "2025-05-30",
-    dday: 13,
-    submittedDate: "2025-05-15",
-    journeyStep: 3,
-    documents: [
-      { name: "주민등록등본", checked: true },
-      { name: "소득증명서", checked: true },
-      { name: "임대차계약서", checked: true },
-      { name: "통장사본", checked: true },
-    ]
-  },
-  {
-    id: "7",
-    title: "국민취업지원제도",
-    status: "결과 대기",
-    statusColor: "#3b6661",
-    statusBg: "rgba(59,102,97,0.1)",
-    progress: 70,
-    org: "고용노동부",
-    deadline: "2025-06-10",
-    dday: 24,
-    submittedDate: "2025-05-20",
-    journeyStep: 2,
-    documents: [
-      { name: "신분증 사본", checked: true },
-      { name: "구직등록확인서", checked: true },
-      { name: "소득·재산 신고서", checked: true },
-      { name: "통장사본", checked: false },
-    ]
-  },
-  {
-    id: "2",
-    title: "청년 일자리 도약 장려금",
-    status: "지원 필요",
-    statusColor: "#ba1a1a",
-    statusBg: "rgba(186,26,26,0.1)",
-    progress: 0,
-    org: "고용노동부",
-    deadline: "2025-05-24",
-    dday: 7,
-    submittedDate: null,
-    journeyStep: 0,
-    documents: [
-      { name: "재직증명서", checked: false },
-      { name: "4대보험 가입확인서", checked: false },
-      { name: "통장사본", checked: false },
-      { name: "신분증 사본", checked: false },
-    ]
-  },
-];
 
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -264,17 +198,19 @@ function PolicyDetailSidePanel({
                 <P style={{ fontSize: 16, color: "#006a63", fontWeight: 700 }}>지원 개요</P>
               </div>
               <P style={{ fontSize: 15, color: "#3c4947", lineHeight: 1.7 }}>{detail?.fullDesc ?? "정보를 불러오는 중..."}</P>
-              <button
-                  className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg transition-all hover:bg-slate-100"
-                  style={{ fontFamily: "Pretendard, sans-serif", fontSize: 14, color: "#006a63", fontWeight: 600, background: "white", border: "1.5px solid rgba(79,209,197,0.4)", cursor: "pointer" }}
-                  onClick={() => window.open(`https://example.com/policy/${policy.id}`, '_blank')}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
-                  <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                원본 공고 보러가기
-              </button>
+              {detail?.detailUrl && (
+                <button
+                    className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg transition-all hover:bg-slate-100"
+                    style={{ fontFamily: "Pretendard, sans-serif", fontSize: 14, color: "#006a63", fontWeight: 600, background: "white", border: "1.5px solid rgba(79,209,197,0.4)", cursor: "pointer" }}
+                    onClick={() => window.open(detail.detailUrl!, '_blank')}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
+                    <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  원본 공고 보러가기
+                </button>
+              )}
             </div>
 
             {/* Benefits Summary */}
@@ -532,6 +468,25 @@ function CompareModal({
   );
 }
 
+function applyStatusToStep(status: string): number {
+  if (status === 'completed') return 3;
+  if (status === 'waiting') return 2;
+  if (status === 'applied' || status === 'apply_now') return 1;
+  return 0;
+}
+function genderApiToDisplay(gender: string | undefined | null): string {
+  if (gender === 'M') return '남성';
+  if (gender === 'F') return '여성';
+  return '기타';
+}
+function assetToDisplayOption(asset: string | undefined | null): string {
+  const num = asset ? Number(asset) : 0;
+  if (isNaN(num) || num < 50_000_000) return '5,000만원 미만';
+  if (num < 100_000_000) return '5,000만원 이상 ~ 1억원 미만';
+  if (num < 300_000_000) return '1억원 이상 ~ 3억원 미만';
+  return '3억원 이상';
+}
+
 /* ─────────────────────────── MyPage ─────────────────────────── */
 
 interface MyPageProps {
@@ -557,12 +512,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [showCompare, setShowCompare] = useState(false);
   const [scheduledIds, setScheduledIds] = useState<Set<string>>(new Set());
   const [detailPolicyId, setDetailPolicyId] = useState<string | null>(null);
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string>("1");
-  const [policyJourneySteps, setPolicyJourneySteps] = useState<Record<string, number>>({
-    "1": 3,
-    "7": 2,
-    "2": 0,
-  });
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string>("");
+  const [policyJourneySteps, setPolicyJourneySteps] = useState<Record<string, number>>({});
 
   const firstEventDate = calendarEvents.length > 0
       ? new Date(calendarEvents[0].eventStartAt)
@@ -589,19 +540,102 @@ export function MyPage({ onNavigate }: MyPageProps) {
   // Profile state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
-    userId: "jiwon_kim_2024",
-    age: 26,
-    gender: "여성",
-    region: "서울특별시",
-    district: "강남구",
-    education: "대학교 졸업",
-    employmentStatus: "구직 중",
-    hasDisability: false,
-    annualIncome: 0,
-    assets: "5,000만원 미만",
-    createdAt: "2024-03-15",
-    interests: ["주거", "일자리"] as ("주거" | "일자리" | "복지")[],
+    uid: "",
+    age: 25,
+    gender: "기타",
+    city: "",
+    scity: "",
+    education: "",
+    employment: "",
+    disability: false,
+    incomeInteger: 0,
+    asset: "5,000만원 미만",
+    createdAt: "",
+    preferredCategories: [] as ("주거" | "일자리" | "복지")[],
   });
+
+  const { data: selectedPolicyDetail } = usePolicyDetail(selectedPolicyId || null);
+  const journeyInitialized = useRef(false);
+  const profileInitialized = useRef(false);
+
+  useEffect(() => {
+    if (calendarEvents.length > 0 && !journeyInitialized.current) {
+      journeyInitialized.current = true;
+      setPolicyJourneySteps(
+        Object.fromEntries(calendarEvents.map(e => [e.policyId, applyStatusToStep(e.applyStatus)]))
+      );
+    }
+  }, [calendarEvents]);
+
+  useEffect(() => {
+    if (calendarEvents.length > 0 && !selectedPolicyId) {
+      setSelectedPolicyId(calendarEvents[0].policyId);
+    }
+  }, [calendarEvents, selectedPolicyId]);
+
+  useEffect(() => {
+    if (profile && !profileInitialized.current) {
+      profileInitialized.current = true;
+      setProfileData({
+        uid: profile.uid,
+        age: profile.age ?? 25,
+        gender: genderApiToDisplay(profile.gender),
+        city: profile.city ?? '',
+        scity: profile.scity ?? '',
+        education: profile.education ?? '',
+        employment: profile.employment ?? '',
+        disability: profile.disability ?? false,
+        incomeInteger: profile.incomeInteger ? Math.floor(profile.incomeInteger / 10000) : 0,
+        asset: assetToDisplayOption(profile.asset),
+        createdAt: profile.createdAt ? profile.createdAt.split('T')[0] : '',
+        preferredCategories: (profile.preferredCategories ?? []).filter(
+          (cat): cat is "주거" | "일자리" | "복지" => ['주거', '일자리', '복지'].includes(cat)
+        ),
+      });
+    }
+  }, [profile]);
+
+  const managedPolicies = useMemo(() => {
+    return calendarEvents.map(event => {
+      const step = policyJourneySteps[event.policyId] ?? applyStatusToStep(event.applyStatus);
+      const endDate = event.eventEndAt ? new Date(event.eventEndAt) : null;
+      const today = new Date();
+      const ddayRaw = endDate ? Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+      const dday = Math.max(0, ddayRaw);
+      const deadline = endDate ? (ddayRaw < 0 ? '마감' : ddayRaw === 0 ? 'D-day' : `D-${ddayRaw}`) : '상시';
+      const statusInfo = (() => {
+        switch (step) {
+          case 1: return { status: '지원 완료', statusColor: '#006a63', statusBg: 'rgba(0,106,99,0.1)' };
+          case 2: return { status: '결과 대기', statusColor: '#3b6661', statusBg: 'rgba(59,102,97,0.1)' };
+          case 3: return { status: '수혜 완료', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.1)' };
+          default: return { status: '지원 필요', statusColor: '#ba1a1a', statusBg: 'rgba(186,26,26,0.1)' };
+        }
+      })();
+      return {
+        id: event.policyId, title: event.title, org: event.org, deadline, dday,
+        submittedDate: step >= 1 ? (event.eventStartAt ? event.eventStartAt.split('T')[0] : null) : null,
+        journeyStep: step, progress: Math.round((step / 3) * 100),
+        documents: [] as { name: string; checked: boolean }[],
+        ...statusInfo,
+      };
+    });
+  }, [calendarEvents, policyJourneySteps]);
+
+  const funnelData = useMemo(() => {
+    const applied = Object.values(policyJourneySteps).filter(s => s >= 1).length;
+    const completed = Object.values(policyJourneySteps).filter(s => s >= 3).length;
+    const totalScraped = scrappedPolicies.length;
+    const totalEvents = calendarEvents.length;
+    const totalBase = Math.max(totalScraped + totalEvents, 1);
+    return [
+      { label: "맞춤 추천", value: totalBase, color: "#80cbc4" },
+      { label: "스크랩", value: totalScraped, color: "#26a69a" },
+      { label: "일정 등록", value: totalEvents, color: "#00897b" },
+      { label: "지원 완료", value: applied, color: "#00695c" },
+      { label: "수혜 완료", value: completed, color: "#004d40" },
+    ];
+  }, [scrappedPolicies, calendarEvents, policyJourneySteps]);
+
 
   const toggleInterest = (category: "주거" | "일자리" | "복지") => {
     if (!isEditingProfile) return;
@@ -661,12 +695,12 @@ export function MyPage({ onNavigate }: MyPageProps) {
             </div>
             <div>
               <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>{user?.name ?? "청년"}</P>
-              <P style={{ fontSize: 14, color: "#64748b" }}>만 26세 · 서울 강남구 · 구직 중</P>
+              <P style={{ fontSize: 14, color: "#64748b" }}>{profile ? `만 ${profile.age ?? '-'}세 · ${profile.city ?? ''} ${profile.scity ?? ''} · ${profile.employment ?? ''}` : ''}</P>
             </div>
             <div className="ml-auto flex gap-6">
               {[
-                { label: "스크랩", value: "28" },
-                { label: "지원 완료", value: "5" },
+                { label: "스크랩", value: String(scrappedPolicies.length) },
+                { label: "지원 완료", value: String(Object.values(policyJourneySteps).filter(s => s >= 1).length) },
                 { label: "수혜 금액", value: isBenefitSummaryLoading ? "..." : `${totalBenefitManwon.toLocaleString()}만원` },
               ].map((stat) => (
                   <div key={stat.label} className="text-center">
@@ -877,7 +911,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                             {funnelData.map((item) => (
                                 <div key={item.label} className="flex items-center gap-6">
                                   <div className="flex-1 flex justify-end">
-                                    <div className="h-10 rounded-lg" style={{ width: `${(item.value / 45) * 100}%`, backgroundColor: item.color, minWidth: 40 }} />
+                                    <div className="h-10 rounded-lg" style={{ width: `${funnelData[0].value > 0 ? (item.value / funnelData[0].value) * 100 : 0}%`, backgroundColor: item.color, minWidth: 40 }} />
                                   </div>
                                   <div className="flex items-center gap-3" style={{ minWidth: 180 }}>
                                     <div className="h-px w-8" style={{ backgroundColor: "#bbc9c7" }} />
@@ -1258,17 +1292,19 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                 </div>
 
                                 {/* Action Button */}
-                                <button
-                                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all hover:opacity-90"
-                                    style={{ backgroundColor: "white", border: "1.5px solid #006a63", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-                                    onClick={() => window.open(`https://example.com/policy/${selectedPolicy.id}`, '_blank')}
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
-                                    <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                  원본 공고 보러가기
-                                </button>
+                                {selectedPolicyDetail?.detailUrl && (
+                                  <button
+                                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all hover:opacity-90"
+                                      style={{ backgroundColor: "white", border: "1.5px solid #006a63", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                                      onClick={() => window.open(selectedPolicyDetail.detailUrl!, '_blank')}
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                      <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
+                                      <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    원본 공고 보러가기
+                                  </button>
+                                )}
                               </div>
                           );
                         })()}

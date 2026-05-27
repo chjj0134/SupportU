@@ -56,7 +56,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
               </h1>
               <P style={{ fontSize: 18, color: "#64748b", margin: 0 }}>오늘도 맞춤 정책을 확인해보세요.</P>
             </div>
-            <P style={{ fontSize: 14, color: "#94a3b8", paddingBottom: 8 }}>2025년 5월 20일 화요일</P>
+            <P style={{ fontSize: 14, color: "#94a3b8", paddingBottom: 8 }}>{new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</P>
           </div>
 
           {/* Top Grid */}
