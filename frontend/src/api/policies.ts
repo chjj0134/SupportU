@@ -3,23 +3,7 @@ import type { Policy, PolicyDetail } from './types';
 import {
   MOCK_POLICIES,
   MOCK_POLICY_DETAILS,
-  MOCK_SCRAPPED,
 } from './__mocks__/policies.mock';
-
-// MyPage용 스크랩 정책 (정책 기본정보 + 상세정보 합본)
-export interface ScrappedPolicy {
-  id: string;
-  title: string;
-  category: string;
-  deadline: string;
-  support: string;
-  org: string;
-  amount: string;
-  scope: string;
-  duration: string;
-  target: string;
-  method: string;
-}
 
 // VITE_USE_MOCK_DATA=true 인 동안에는 mock 응답을, false면 실제 API를 호출한다.
 // 백엔드 API가 구현되면 .env에서 한 줄만 바꾸면 전체 코드가 실제 API로 전환된다.
@@ -73,10 +57,4 @@ export async function togglePolicyBookmark(
   }
 
   await apiClient.post(`/policies/${id}/bookmark`);
-}
-
-/** 스크랩된 정책 목록 조회 (마이페이지용) */
-export async function fetchScrappedPolicies(): Promise<ScrappedPolicy[]> {
-  if (USE_MOCK) return delay(MOCK_SCRAPPED);
-  return apiClient.get<ScrappedPolicy[]>('/policies/scrapped');
 }

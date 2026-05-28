@@ -1,19 +1,47 @@
 import { useState } from "react";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
-import type { ScrappedPolicy } from "../../api/policies";
+import type { Policy } from "../../api/types";
 import type { CalendarEvent } from "../../api/calendar";
-import { useScrappedPolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
+import { useBookmarkedPolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
 import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
-import { Spinner } from "./common/Spinner";
-import { ErrorMessage } from "./common/ErrorMessage";
 import { getCategoryStyle } from "../../constants/categories";
 
 /* ─────────────────────────── Data ─────────────────────────── */
+
+type MyPagePolicy = Policy & {
+  amount?: string;
+  scope?: string;
+  duration?: string;
+  target?: string;
+  method?: string;
+};
+
+type PolicyCategoryLabel = "주거" | "일자리" | "복지";
+
+function getPolicyCategoryLabel(policy: MyPagePolicy): PolicyCategoryLabel {
+  if (policy.categoryKr === "주거" || policy.categoryKr === "일자리" || policy.categoryKr === "복지") {
+    return policy.categoryKr;
+  }
+
+  if (policy.category === "주거" || policy.category === "일자리" || policy.category === "복지") {
+    return policy.category;
+  }
+
+  if (policy.category === "Housing") {
+    return "주거";
+  }
+
+  if (policy.category === "Jobs") {
+    return "일자리";
+  }
+
+  return "복지";
+}
 
 // 카테고리 색상은 constants/categories.ts에 정의된 토큰을 사용한다.
 // 한글 라벨 기반 매핑이 필요할 때 보조용으로 categoryColor를 유지.
@@ -23,7 +51,7 @@ const categoryColor: Record<string, { bg: string; text: string; border: string }
   복지: getCategoryStyle("복지"),
 };
 
-const compareFields: { key: keyof ScrappedPolicy; label: string }[] = [
+const compareFields: { key: keyof MyPagePolicy; label: string }[] = [
   { key: "org", label: "주관 기관" },
   { key: "amount", label: "지원 금액" },
   { key: "scope", label: "지원 범위" },
@@ -166,7 +194,7 @@ function PolicyDetailSidePanel({
                                  onSchedule,
                                }: {
   policyId: string;
-  policies: ScrappedPolicy[];
+  policies: MyPagePolicy[];
   onClose: () => void;
   onSchedule: (id: string) => void;
 }) {
@@ -181,6 +209,8 @@ function PolicyDetailSidePanel({
     onSchedule(policyId);
     setTimeout(() => setApplied(false), 3000);
   };
+
+  const categoryLabel = getPolicyCategoryLabel(policy);
 
   const categoryBg: Record<string, string> = {
     주거: "#eff6ff",
@@ -231,9 +261,9 @@ function PolicyDetailSidePanel({
                 <div className="flex items-center gap-2 mb-3">
                 <span
                     className="px-2.5 py-1 rounded text-xs"
-                    style={{ backgroundColor: categoryColor[policy.category].bg, color: categoryColor[policy.category].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
+                    style={{ backgroundColor: categoryColor[categoryLabel].bg, color: categoryColor[categoryLabel].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
                 >
-                  {policy.category}
+                  {categoryLabel}
                 </span>
                   <P style={{ fontSize: 13, color: policy.deadline === "상시" ? "#006a63" : "#ba1a1a", fontWeight: 700 }}>{policy.deadline}</P>
                 </div>
@@ -244,7 +274,7 @@ function PolicyDetailSidePanel({
               </div>
               <div
                   className="flex flex-col items-end gap-1"
-                  style={{ backgroundColor: categoryBg[policy.category] || "#f1f5f9", borderRadius: 12, padding: "12px 16px" }}
+                  style={{ backgroundColor: categoryBg[categoryLabel] || "#f1f5f9", borderRadius: 12, padding: "12px 16px" }}
               >
                 <P style={{ fontSize: 12, color: "#3c4947" }}>지원 규모</P>
                 <P style={{ fontSize: 18, color: "#006a63", fontWeight: 700 }}>{policy.support}</P>
@@ -363,12 +393,13 @@ function CompareModal({
                         onClose,
                         onSchedule,
                       }: {
-  policies: ScrappedPolicy[];
+  policies: MyPagePolicy[];
   onClose: () => void;
   onSchedule: (id: string) => void;
 }) {
   const [scheduled, setScheduled] = useState<Set<string>>(new Set());
   const cols = policies.length;
+  const firstCategoryLabel = getPolicyCategoryLabel(policies[0]);
 
   const handleSchedule = (id: string) => {
     setScheduled((prev) => new Set([...prev, id]));
@@ -400,9 +431,9 @@ function CompareModal({
               <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>공고 비교</P>
               <span
                   className="px-2.5 py-1 rounded-full text-xs font-bold"
-                  style={{ backgroundColor: categoryColor[policies[0].category].bg, color: categoryColor[policies[0].category].text, fontFamily: "Pretendard, sans-serif" }}
+                  style={{ backgroundColor: categoryColor[firstCategoryLabel].bg, color: categoryColor[firstCategoryLabel].text, fontFamily: "Pretendard, sans-serif" }}
               >
-              {policies[0].category} · {cols}개 비교
+              {firstCategoryLabel} · {cols}개 비교
             </span>
             </div>
             <button
@@ -426,18 +457,22 @@ function CompareModal({
               <div className="bg-slate-50 px-5 py-4">
                 <P style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>항목</P>
               </div>
-              {policies.map((p) => (
-                  <div key={p.id} className="bg-white px-5 py-4">
+              {policies.map((p) => {
+                const categoryLabel = getPolicyCategoryLabel(p);
+
+                return (
+                    <div key={p.id} className="bg-white px-5 py-4">
                 <span
                     className="inline-block px-2 py-0.5 rounded-full text-xs mb-2"
-                    style={{ backgroundColor: categoryColor[p.category].bg, color: categoryColor[p.category].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
+                    style={{ backgroundColor: categoryColor[categoryLabel].bg, color: categoryColor[categoryLabel].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
                 >
-                  {p.category}
+                  {categoryLabel}
                 </span>
-                    <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c", lineHeight: 1.4 }}>{p.title}</P>
-                    <P style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{p.org}</P>
-                  </div>
-              ))}
+                      <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c", lineHeight: 1.4 }}>{p.title}</P>
+                      <P style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{p.org}</P>
+                    </div>
+                );
+              })}
             </div>
 
             {/* Deadline Row */}
@@ -476,15 +511,19 @@ function CompareModal({
                   <div className="px-5 py-4 flex items-start" style={{ backgroundColor: i % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
                     <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>{field.label}</P>
                   </div>
-                  {policies.map((p) => (
-                      <div key={p.id} className="bg-white px-5 py-4">
-                        {field.key === "amount" ? (
-                            <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63" }}>{p[field.key]}</P>
-                        ) : (
-                            <P style={{ fontSize: 14, color: "#171d1c", lineHeight: 1.5 }}>{p[field.key]}</P>
-                        )}
-                      </div>
-                  ))}
+                  {policies.map((p) => {
+                    const value = p[field.key] ?? "-";
+
+                    return (
+                        <div key={p.id} className="bg-white px-5 py-4">
+                          {field.key === "amount" ? (
+                              <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63" }}>{String(value)}</P>
+                          ) : (
+                              <P style={{ fontSize: 14, color: "#171d1c", lineHeight: 1.5 }}>{String(value)}</P>
+                          )}
+                        </div>
+                    );
+                  })}
                 </div>
             ))}
           </div>
@@ -543,7 +582,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const { data: profile } = useProfile();
   const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
   const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
-  const { data: scrappedPolicies = [] } = useScrappedPolicies();
+  const { data: bookmarkedPolicies = [] } = useBookmarkedPolicies();
   const { data: calendarEvents = [] } = useCalendarEvents();
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
 
@@ -620,17 +659,21 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   /* derive locked category from first selection */
   const lockedCategory = selected.length > 0
-      ? scrappedPolicies.find((p) => p.id === selected[0])?.category
+      ? bookmarkedPolicies.find((p) => p.id === selected[0])
+          ? getPolicyCategoryLabel(bookmarkedPolicies.find((p) => p.id === selected[0])!)
+          : null
       : null;
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const policy = scrappedPolicies.find((p) => p.id === id);
+    const policy = bookmarkedPolicies.find((p) => p.id === id);
     if (!policy) return;
+
+    const policyCategory = getPolicyCategoryLabel(policy);
 
     // 같은 카테고리만, 최대 3개까지 선택 가능 - 비즈니스 규칙을 가드로 표현
     toggleCompareSelection(id, (current) => {
-      if (lockedCategory && policy.category !== lockedCategory) return false;
+      if (lockedCategory && policyCategory !== lockedCategory) return false;
       if (current.length >= 3) return false;
       return true;
     });
@@ -638,11 +681,11 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   const clearSelection = () => clearCompareSelection();
 
-  const selectedPolicies = scrappedPolicies.filter((p) => selected.includes(p.id));
+  const selectedPolicies = bookmarkedPolicies.filter((p) => selected.includes(p.id));
 
   const groupedByCategory = ["주거", "일자리", "복지"].map((cat) => ({
     category: cat as "주거" | "일자리" | "복지",
-    policies: scrappedPolicies.filter((p) => p.category === cat),
+    policies: bookmarkedPolicies.filter((p) => getPolicyCategoryLabel(p) === cat),
   }));
 
   return (
@@ -665,7 +708,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
             </div>
             <div className="ml-auto flex gap-6">
               {[
-                { label: "스크랩", value: "28" },
+                { label: "스크랩", value: bookmarkedPolicies.length.toLocaleString() },
                 { label: "지원 완료", value: "5" },
                 { label: "수혜 금액", value: isBenefitSummaryLoading ? "..." : `${totalBenefitManwon.toLocaleString()}만원` },
               ].map((stat) => (
@@ -738,8 +781,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
                       <div className="grid grid-cols-3 gap-5">
                         {policies.map((p) => {
+                          const categoryLabel = getPolicyCategoryLabel(p);
                           const isSelected = selected.includes(p.id);
-                          const isDisabled = !!(lockedCategory && p.category !== lockedCategory);
+                          const isDisabled = !!(lockedCategory && categoryLabel !== lockedCategory);
                           const isFull = selected.length >= 3 && !isSelected;
                           const isScheduled = scheduledIds.has(p.id) || registeredPolicyIds.has(p.id);
 
@@ -802,7 +846,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                 >
                                   <P style={{ fontSize: 17, fontWeight: 600, color: "#171d1c", lineHeight: 1.4, marginBottom: 6 }}>{p.title}</P>
                                   <P style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{p.org}</P>
-                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.amount}</P>
+                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.amount ?? p.support}</P>
                                   <P style={{ fontSize: 13, color: "#3c4947" }}>지원규모: {p.support}</P>
 
                                   <div className="flex items-center justify-between mt-4 pt-3 border-t" style={{ borderColor: "#e9efed" }}>
@@ -1299,7 +1343,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
         {detailPolicyId && (
             <PolicyDetailSidePanel
                 policyId={detailPolicyId}
-                policies={scrappedPolicies}
+                policies={bookmarkedPolicies}
                 onClose={() => setDetailPolicyId(null)}
                 onSchedule={handleSchedulePolicy}
             />
