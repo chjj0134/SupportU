@@ -128,6 +128,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
       { label: '소득 수준 (중위 60% 이하)', value: '대상 포함' },
       { label: '주거 상태 (무주택자)', value: '무주택 확인' },
     ],
+    detailUrl: 'https://youth.seoul.go.kr/site/youth/rent',
   },
   '2': {
     fullDesc:
@@ -144,6 +145,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
       { label: '소득 수준 (제한 없음)', value: '대상 포함' },
       { label: '취업 상태 (미취업자)', value: '구직 중' },
     ],
+    detailUrl: 'https://www.work24.go.kr/cm/c/d/CMCDDE001Main.do',
   },
   '3': {
     fullDesc:
@@ -160,6 +162,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
       { label: '심리지원 필요 여부', value: '해당' },
       { label: '기존 유사 서비스 이용 여부', value: '미이용' },
     ],
+    detailUrl: 'https://www.bokjiro.go.kr',
   },
   '4': {
     fullDesc:
@@ -176,6 +179,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
       { label: '주거 상태 (무주택)', value: '무주택 확인' },
       { label: '신혼부부 여부', value: '해당 없음' },
     ],
+    detailUrl: 'https://www.i-sh.co.kr',
   },
   '5': {
     fullDesc:
@@ -192,6 +196,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
       { label: '근속 기간 (6개월 미만)', value: '신규 채용' },
       { label: '기업 규모 (중소기업)', value: '해당 시 가능' },
     ],
+    detailUrl: 'https://www.sbcplan.or.kr',
   },
   '6': {
     fullDesc:
@@ -206,6 +211,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
       { label: '연령 (만 15세~34세)', value: '만 26세' },
       { label: '중소기업 재직 여부', value: '구직 중' },
     ],
+    detailUrl: 'https://www.sbcplan.or.kr',
   },
   '7': {
     fullDesc:
@@ -222,6 +228,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
       { label: '소득 기준', value: '대상 포함' },
       { label: '구직 활동 의사', value: '있음' },
     ],
+    detailUrl: 'https://www.work24.go.kr',
   },
   '8': {
     fullDesc:
@@ -238,6 +245,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
       { label: '소득 (기준 중위 100% 이하)', value: '대상 포함' },
       { label: '재산 기준', value: '기준 충족' },
     ],
+    detailUrl: 'https://www.bokjiro.go.kr',
   },
 };
 
