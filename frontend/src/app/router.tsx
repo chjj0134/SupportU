@@ -5,7 +5,6 @@ import type { ProfileResponse } from '../api/types';
 import { Navbar } from './components/Navbar';
 import { HomePage } from './components/HomePage';
 import { PolicyListPage } from './components/PolicyListPage';
-import { PolicyDetailPage } from './components/PolicyDetailPage';
 import { MyPage } from './components/MyPage';
 import { LoginPage } from './components/LoginPage';
 import { SignupPage } from './components/SignupPage';
@@ -46,7 +45,7 @@ function ProtectedLayout() {
   if (!isProfileComplete(profile)) return <Navigate to="/signup" replace />;
 
   const handleNavigate = (page: string, id?: string) => {
-    if (page === 'policy-detail' && id) navigate(`/policies/${id}`);
+    if (page === 'policy-detail' && id) navigate(`/policies?detail=${encodeURIComponent(id)}`);
     else if (page === 'policies') navigate('/policies');
     else if (page === 'home') navigate('/');
     else if (page === 'mypage') navigate('/mypage');
@@ -87,7 +86,7 @@ function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
 function HomeRoute() {
   const navigate = useNavigate();
   const handleNavigate = (page: string, id?: string) => {
-    if (page === 'policy-detail' && id) navigate(`/policies/${id}`);
+    if (page === 'policy-detail' && id) navigate(`/policies?detail=${encodeURIComponent(id)}`);
     else navigate(page === 'home' ? '/' : `/${page}`);
   };
   return <HomePage onNavigate={handleNavigate} />;
@@ -96,7 +95,7 @@ function HomeRoute() {
 function PoliciesRoute() {
   const navigate = useNavigate();
   const handleNavigate = (page: string, id?: string) => {
-    if (page === 'policy-detail' && id) navigate(`/policies/${id}`);
+    if (page === 'policy-detail' && id) navigate(`/policies?detail=${encodeURIComponent(id)}`);
     else navigate(page === 'home' ? '/' : `/${page}`);
   };
   return <PolicyListPage onNavigate={handleNavigate} />;
@@ -104,18 +103,13 @@ function PoliciesRoute() {
 
 function PolicyDetailRoute() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const handleNavigate = (page: string, nextId?: string) => {
-    if (page === 'policy-detail' && nextId) navigate(`/policies/${nextId}`);
-    else navigate(page === 'home' ? '/' : `/${page}`);
-  };
-  return <PolicyDetailPage policyId={id ?? '1'} onNavigate={handleNavigate} />;
+  return <Navigate to={`/policies?detail=${encodeURIComponent(id ?? '')}`} replace />;
 }
 
 function MyPageRoute() {
   const navigate = useNavigate();
   const handleNavigate = (page: string, id?: string) => {
-    if (page === 'policy-detail' && id) navigate(`/policies/${id}`);
+    if (page === 'policy-detail' && id) navigate(`/policies?detail=${encodeURIComponent(id)}`);
     else navigate(page === 'home' ? '/' : `/${page}`);
   };
   return <MyPage onNavigate={handleNavigate} />;

@@ -111,7 +111,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
     benefits: ['월세 최대 20만원 지원', '최대 12개월간 지원', '총 최대 240만원 지급'],
     amount: '월 최대 20만원',
     scope: '월세 지원금 직접 지급',
-    duration: '최대 12개월',
+    duration: '2024-05-21 ~ 2024-05-31',
     target: '만 19~34세 무주택 청년',
     method: '온라인 신청 (복지로)',
     eligibility: [
@@ -128,7 +128,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
     benefits: ['인건비 월 최대 80만원 지원', '최대 12개월 지원', '추가 장려금 100만원'],
     amount: '월 최대 80만원',
     scope: '중소기업 인건비 지원',
-    duration: '최대 12개월',
+    duration: '2024-06-01 ~ 2024-06-30',
     target: '취업애로 청년 신규 채용 중소기업',
     method: '고용24 온라인 신청',
     eligibility: [
@@ -145,7 +145,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
     benefits: ['심리상담 회당 최대 5만원 지원', '연 10회 지원', '전문 상담사 연결'],
     amount: '회당 최대 5만원 (연 10회)',
     scope: '전문 심리상담 서비스 지원',
-    duration: '연 1회 (10회기)',
+    duration: '2024-07-01 ~ 2024-07-19',
     target: '만 19~34세 심리지원 필요 청년',
     method: '복지로 온라인 신청',
     eligibility: [
@@ -162,7 +162,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
     benefits: ['시세 85% 이하 임대료', '역세권 위치 주택', '최대 6년 거주 가능'],
     amount: '시세의 85% 이하 임대료',
     scope: '역세권 공공임대주택 공급',
-    duration: '최대 6년 거주',
+    duration: '2024-08-05 ~ 2024-08-23',
     target: '만 19~39세 무주택 청년·신혼부부',
     method: 'SH청약센터 온라인 신청',
     eligibility: [
@@ -179,7 +179,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
     benefits: ['청년 납입 300만원', '기업 지원 400만원', '정부 지원 500만원 = 총 1,200만원'],
     amount: '만기 1,200만원 (정부+기업 지원)',
     scope: '장기재직 청년 자산형성 지원',
-    duration: '2년 근속',
+    duration: '2024-09-02 ~ 2024-09-30',
     target: '만 15~34세 중소기업 재직 청년',
     method: '내일채움공제 홈페이지 신청',
     eligibility: [
@@ -196,7 +196,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
     benefits: ['청년 납입 300만원', '기업 지원 400만원', '정부 지원 500만원 = 총 1,200만원'],
     amount: '만기 1,200만원',
     scope: '청년 자산형성 지원',
-    duration: '2년',
+    duration: '2024-09-02 ~ 2024-09-30',
     target: '만 15~34세 중소기업 재직 청년',
     method: '내일채움공제 홈페이지',
     eligibility: [
@@ -211,7 +211,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
     benefits: ['구직촉진수당 월 50만원', '최대 6개월 지원', '취업지원 프로그램 연계'],
     amount: '구직촉진수당 월 50만원',
     scope: '취업지원 서비스 + 생계지원',
-    duration: '최대 6개월',
+    duration: '2024-10-01 ~ 2024-10-31',
     target: '만 15~69세 구직자',
     method: '고용24 / 고용센터 방문 신청',
     eligibility: [
@@ -228,7 +228,7 @@ export const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
     benefits: ['청년 납입 월 10만원', '정부 지원 월 최대 30만원', '3년 후 최대 1,440만원'],
     amount: '3년 만기 최대 1,440만원',
     scope: '저소득 청년 자산형성 지원',
-    duration: '3년 적립 후 만기 수령',
+    duration: '2024-11-01 ~ 2024-11-22',
     target: '만 19~34세 근로 저소득 청년',
     method: '복지로 / 읍면동 주민센터 신청',
     eligibility: [
