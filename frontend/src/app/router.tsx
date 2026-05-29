@@ -38,18 +38,17 @@ function ProtectedLayout() {
   const { data: profile, isLoading: isProfileLoading } = useProfile();
   const navigate = useNavigate();
 
-  if (isAuthLoading) return <Spinner fullScreen label="로딩 중..." />;
-  if (!user) return <Navigate to="/login" replace />;
+  //if (isAuthLoading) return <Spinner fullScreen label="로딩 중..." />;
+  //if (!user) return <Navigate to="/login" replace />;
 
   if (isProfileLoading) return <Spinner fullScreen label="프로필 확인 중..." />;
-  if (!isProfileComplete(profile)) return <Navigate to="/signup" replace />;
+  //if (!isProfileComplete(profile)) return <Navigate to="/signup" replace />;
 
   const handleNavigate = (page: string, id?: string) => {
     if (page === 'policy-detail' && id) navigate(`/policies?detail=${encodeURIComponent(id)}`);
     else if (page === 'policies') navigate('/policies');
     else if (page === 'home') navigate('/');
     else if (page === 'mypage') navigate('/mypage');
-    else if (page === 'settings') navigate('/settings');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -64,11 +63,10 @@ function ProtectedLayout() {
   );
 }
 
-function getCurrentPage(): 'home' | 'policies' | 'mypage' | 'settings' {
+function getCurrentPage(): 'home' | 'policies' | 'mypage'  {
   const path = window.location.pathname;
   if (path.startsWith('/policies')) return 'policies';
   if (path.startsWith('/mypage')) return 'mypage';
-  if (path.startsWith('/settings')) return 'settings';
   return 'home';
 }
 
@@ -115,19 +113,6 @@ function MyPageRoute() {
   return <MyPage onNavigate={handleNavigate} />;
 }
 
-function SettingsRoute() {
-  return (
-      <div
-          className="min-h-screen pt-16 flex items-center justify-center"
-          style={{ backgroundColor: '#f5fbf8' }}
-      >
-        <div className="text-center">
-          <P style={{ fontSize: 24, color: '#3c4947', marginBottom: 8 }}>설정</P>
-          <P style={{ fontSize: 16, color: '#94a3b8' }}>준비 중입니다.</P>
-        </div>
-      </div>
-  );
-}
 
 function LoginRoute() {
   const navigate = useNavigate();
@@ -162,7 +147,6 @@ export const router = createBrowserRouter([
       { path: 'policies', element: <PoliciesRoute /> },
       { path: 'policies/:id', element: <PolicyDetailRoute /> },
       { path: 'mypage', element: <MyPageRoute /> },
-      { path: 'settings', element: <SettingsRoute /> },
     ],
   },
 ]);
