@@ -17,7 +17,7 @@ public record PolicyDetailResponse(
 ) {
     public static PolicyDetailResponse from(Policy policy) {
         return new PolicyDetailResponse(
-                firstNonBlank(policy.getSummary(), "상세 설명 확인 필요"),
+                firstNonBlank(policy.getSupportContent(), "지원 내용 확인 필요"),
                 parseBenefits(policy.getSupportContent()),
                 firstNonBlank(policy.getSupportContent(), "지원금 확인 필요"),
                 firstNonBlank(policy.getSupportContent(), "지원 범위 확인 필요"),
