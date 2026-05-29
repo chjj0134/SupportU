@@ -68,65 +68,18 @@ const funnelData = [
   { label: "수혜 완료", value: 2, color: "#004d40" },
 ];
 
-const managedPolicies = [
-  {
-    id: "1",
-    title: "청년 월세 특별지원",
-    status: "지원 완료",
-    statusColor: "#006a63",
-    statusBg: "rgba(0,106,99,0.1)",
-    progress: 100,
-    org: "국토교통부",
-    deadline: "2025-05-30",
-    dday: 13,
-    submittedDate: "2025-05-15",
-    journeyStep: 3,
-    documents: [
-      { name: "주민등록등본", checked: true },
-      { name: "소득증명서", checked: true },
-      { name: "임대차계약서", checked: true },
-      { name: "통장사본", checked: true },
-    ]
-  },
-  {
-    id: "7",
-    title: "국민취업지원제도",
-    status: "결과 대기",
-    statusColor: "#3b6661",
-    statusBg: "rgba(59,102,97,0.1)",
-    progress: 70,
-    org: "고용노동부",
-    deadline: "2025-06-10",
-    dday: 24,
-    submittedDate: "2025-05-20",
-    journeyStep: 2,
-    documents: [
-      { name: "신분증 사본", checked: true },
-      { name: "구직등록확인서", checked: true },
-      { name: "소득·재산 신고서", checked: true },
-      { name: "통장사본", checked: false },
-    ]
-  },
-  {
-    id: "2",
-    title: "청년 일자리 도약 장려금",
-    status: "지원 필요",
-    statusColor: "#ba1a1a",
-    statusBg: "rgba(186,26,26,0.1)",
-    progress: 0,
-    org: "고용노동부",
-    deadline: "2025-05-24",
-    dday: 7,
-    submittedDate: null,
-    journeyStep: 0,
-    documents: [
-      { name: "재직증명서", checked: false },
-      { name: "4대보험 가입확인서", checked: false },
-      { name: "통장사본", checked: false },
-      { name: "신분증 사본", checked: false },
-    ]
-  },
-];
+function getStatusStyle(applyStatus: string) {
+  switch (applyStatus) {
+    case "지원 완료":
+      return { statusColor: "#006a63", statusBg: "rgba(0,106,99,0.1)", progress: 100, journeyStep: 3 };
+    case "결과 대기":
+      return { statusColor: "#3b6661", statusBg: "rgba(59,102,97,0.1)", progress: 70, journeyStep: 2 };
+    case "수혜 완료":
+      return { statusColor: "#004d40", statusBg: "rgba(0,77,64,0.1)", progress: 100, journeyStep: 3 };
+    default:
+      return { statusColor: "#ba1a1a", statusBg: "rgba(186,26,26,0.1)", progress: 0, journeyStep: 0 };
+  }
+}
 
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -586,6 +539,29 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const { data: calendarEvents = [] } = useCalendarEvents();
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
 
+  const managedPolicies = calendarEvents.map((event) => {
+    const { statusColor, statusBg, progress, journeyStep } = getStatusStyle(event.applyStatus);
+    const deadline = event.eventEndAt ? event.eventEndAt.split("T")[0] : "상시";
+    const dday = event.eventEndAt
+      ? Math.max(0, Math.ceil((new Date(event.eventEndAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
+    return {
+      id: event.policyId,
+      title: event.title,
+      org: event.org,
+      status: event.applyStatus,
+      statusColor,
+      statusBg,
+      progress,
+      deadline,
+      dday,
+      submittedDate: event.appliedAt ?? null,
+      journeyStep,
+      documents: [] as { name: string; checked: boolean }[],
+    };
+  });
+
   // 비교 선택은 Zustand store에서 가져와 페이지 이동 후에도 유지된다
   const selected = useCompareStore((s) => s.selectedIds);
   const toggleCompareSelection = useCompareStore((s) => s.toggle);
@@ -596,12 +572,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [showCompare, setShowCompare] = useState(false);
   const [scheduledIds, setScheduledIds] = useState<Set<string>>(new Set());
   const [detailPolicyId, setDetailPolicyId] = useState<string | null>(null);
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string>("1");
-  const [policyJourneySteps, setPolicyJourneySteps] = useState<Record<string, number>>({
-    "1": 3,
-    "7": 2,
-    "2": 0,
-  });
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string>("");
+  const [policyJourneySteps, setPolicyJourneySteps] = useState<Record<string, number>>({});
 
   const firstEventDate = calendarEvents.length > 0
       ? new Date(calendarEvents[0].eventStartAt)
@@ -1137,7 +1109,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
                           const completedDocs = selectedPolicy.documents.filter(d => d.checked).length;
                           const totalDocs = selectedPolicy.documents.length;
-                          const currentStep = policyJourneySteps[selectedPolicy.id] || 0;
+                          const currentStep = policyJourneySteps[selectedPolicy.id] ?? selectedPolicy.journeyStep;
 
                           const journeySteps = [
                             { label: "지원 필요", icon: "📝" },

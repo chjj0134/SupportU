@@ -12,6 +12,7 @@ export interface CalendarEvent {
     reminderAt: string;
     googleEventId: string | null;
     googleEventLink: string | null;
+    appliedAt?: string | null;
 }
 
 export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
