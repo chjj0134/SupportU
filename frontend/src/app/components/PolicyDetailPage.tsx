@@ -267,21 +267,6 @@ export function PolicyDetailPage({ policyId, onNavigate }: PolicyDetailPageProps
                 </div>
               </div>
             )}
-
-            {/* Match Score */}
-            <div
-              className="flex items-center justify-between p-5 rounded-2xl mb-6"
-              style={{ background: "linear-gradient(135deg, #006a63 0%, #00897b 100%)", color: "white" }}
-            >
-              <div>
-                <P style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 4 }}>AI 매칭 점수</P>
-                <P style={{ fontSize: 32, fontWeight: 700, color: "white" }}>{policy.match}%</P>
-                <P style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>나에게 매우 적합한 정책</P>
-              </div>
-              <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(255,255,255,0.15)", backdropFilter: "blur(10px)", fontSize: 36 }}>
-                ✨
-              </div>
-            </div>
           </div>
 
           {/* Right Sidebar */}
