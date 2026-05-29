@@ -73,19 +73,6 @@ public class PolicyController {
                 .toList();
     }
 
-    @GetMapping("/scrapped")
-    public List<ScrappedPolicyResponse> getScrappedPolicies(
-            @AuthenticationPrincipal OAuth2User oauth2User
-    ) {
-        String uid = getGoogleUid(oauth2User);
-
-        return bookmarkRepository.findByUidOrderByCreatedAtDesc(uid).stream()
-                .map(bookmark -> policyRepository.findById(bookmark.getPolicyId()).orElse(null))
-                .filter(policy -> policy != null)
-                .map(ScrappedPolicyResponse::from)
-                .toList();
-    }
-
     @PostMapping("/{id}/bookmark")
     public void bookmarkPolicy(
             @AuthenticationPrincipal OAuth2User oauth2User,

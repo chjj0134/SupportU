@@ -14,7 +14,6 @@ public record PolicyResponse(
         String deadline,
         String support,
         String desc,
-        int match,
         String region,
         boolean bookmarked
 ) {
@@ -32,7 +31,6 @@ public record PolicyResponse(
                 toDeadline(policy.getPend()),
                 firstNonBlank(policy.getSupportContent(), "지원내용 확인 필요"),
                 firstNonBlank(policy.getSummary(), "상세 설명 확인 필요"),
-                85,
                 firstNonBlank(policy.getRegion(), "전국"),
                 bookmarked
         );
