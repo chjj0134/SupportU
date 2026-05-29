@@ -194,15 +194,19 @@ export function PolicyDetailPage({ policyId, onNavigate }: PolicyDetailPageProps
                 <P style={{ fontSize: 16, color: "#006a63", fontWeight: 700 }}>지원 개요</P>
               </div>
               <P style={{ fontSize: 15, color: "#3c4947", lineHeight: 1.7 }}>{detail?.fullDesc ?? "정보를 불러오는 중..."}</P>
-              <button
-                className="flex items-center gap-1 mt-3"
-                style={{ fontFamily: "Pretendard, sans-serif", fontSize: 14, color: "#006a63", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
-              >
-                전체 공고문 보기
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 7H12M8 3L12 7L8 11" stroke="#006A63" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
+              {detail?.detailUrl && (
+                <button
+                  className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg transition-all hover:bg-slate-100"
+                  style={{ fontFamily: "Pretendard, sans-serif", fontSize: 14, color: "#006a63", fontWeight: 600, background: "white", border: "1.5px solid rgba(79,209,197,0.4)", cursor: "pointer" }}
+                  onClick={() => window.open(detail.detailUrl!, '_blank')}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
+                    <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  원본 공고 보러가기
+                </button>
+              )}
             </div>
 
             {/* Benefits Summary */}
