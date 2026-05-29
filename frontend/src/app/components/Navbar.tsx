@@ -1,6 +1,6 @@
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 
-type Page = "home" | "policies" | "mypage" | "settings";
+type Page = "home" | "policies" | "mypage" ;
 
 interface NavbarProps {
   currentPage: Page;
@@ -32,7 +32,6 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
             { id: "home" as Page, label: "홈" },
             { id: "policies" as Page, label: "공고", badge: "12건" },
             { id: "mypage" as Page, label: "마이페이지" },
-            { id: "settings" as Page, label: "설정" },
           ].map((item) => (
             <button
               key={item.id}
