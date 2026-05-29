@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { useQueries } from "@tanstack/react-query";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
-import type { Policy } from "../../api/types";
+import type { Policy, PolicyDetail } from "../../api/types";
 import type { CalendarEvent } from "../../api/calendar";
+import { fetchPolicyDetail } from "../../api/policies";
+import { queryKeys } from "../../lib/queryClient";
 import { useBookmarkedPolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile } from "../../api/queries/useProfileQueries";
@@ -354,6 +357,14 @@ function CompareModal({
   const cols = policies.length;
   const firstCategoryLabel = getPolicyCategoryLabel(policies[0]);
 
+  const detailResults = useQueries({
+    queries: policies.map((p) => ({
+      queryKey: queryKeys.policies.detail(p.id),
+      queryFn: () => fetchPolicyDetail(p.id),
+    })),
+  });
+  const details = detailResults.map((r) => r.data ?? null);
+
   const handleSchedule = (id: string) => {
     setScheduled((prev) => new Set([...prev, id]));
     onSchedule(id);
@@ -464,8 +475,10 @@ function CompareModal({
                   <div className="px-5 py-4 flex items-start" style={{ backgroundColor: i % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
                     <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>{field.label}</P>
                   </div>
-                  {policies.map((p) => {
-                    const value = p[field.key] ?? "-";
+                  {policies.map((p, idx) => {
+                    const value = field.key === "org"
+                      ? p.org
+                      : details[idx]?.[field.key as keyof PolicyDetail] ?? "-";
 
                     return (
                         <div key={p.id} className="bg-white px-5 py-4">
@@ -1303,6 +1316,66 @@ export function MyPage({ onNavigate }: MyPageProps) {
               </div>
           )}
         </main>
+
+        {/* ── Compare Floating Bar ── */}
+        {mainTab === "scraps" && selected.length > 0 && (
+            <div
+                className="fixed bottom-6 left-1/2 z-40 flex items-center gap-4 px-6 py-4 rounded-2xl"
+                style={{
+                  transform: "translateX(-50%)",
+                  backgroundColor: "white",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+                  border: "1px solid rgba(187,201,199,0.4)",
+                  minWidth: 420,
+                }}
+            >
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#006a63" }}>
+                  <P style={{ fontSize: 12, fontWeight: 700, color: "white" }}>{selected.length}</P>
+                </div>
+                <P style={{ fontSize: 14, fontWeight: 600, color: "#171d1c" }}>공고 선택됨</P>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {selectedPolicies.map((p) => {
+                    const label = getPolicyCategoryLabel(p);
+                    return (
+                        <span
+                            key={p.id}
+                            className="px-2.5 py-0.5 rounded-full text-xs"
+                            style={{ backgroundColor: categoryColor[label].bg, color: categoryColor[label].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
+                        >
+                          {p.title.length > 12 ? p.title.slice(0, 12) + "…" : p.title}
+                        </span>
+                    );
+                  })}
+                </div>
+              </div>
+              <button
+                  onClick={clearSelection}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 10px", fontFamily: "Pretendard, sans-serif", fontSize: 13, color: "#94a3b8", fontWeight: 500 }}
+              >
+                초기화
+              </button>
+              <button
+                  disabled={selected.length < 2}
+                  onClick={() => setShowCompare(true)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all hover:opacity-90 active:scale-95"
+                  style={{
+                    backgroundColor: selected.length < 2 ? "#e2e8f0" : "#006a63",
+                    border: "none",
+                    cursor: selected.length < 2 ? "not-allowed" : "pointer",
+                    fontFamily: "Pretendard, sans-serif",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: selected.length < 2 ? "#94a3b8" : "white",
+                  }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 4H14M2 8H10M2 12H12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                비교하기
+              </button>
+            </div>
+        )}
 
         {showCompare && (
             <CompareModal
