@@ -1,7 +1,6 @@
 import json
-import time
 import os
-
+import asyncio
 from langchain_core.messages import HumanMessage
 
 from db.supabase_client import supabase
@@ -122,11 +121,14 @@ def eligibility_worker_node(state):
     print("[NODE] eligibility_worker_node")
     user = state["user_profile"]
 
-    results = []
+    async def process_policy(
+        semaphore,
+        policy
+    ):
 
-    for policy in state["policies"]:
+        async with semaphore:
 
-        human_msg = f'''
+            human_msg = f'''
 <user_profile>
 {json.dumps(user, ensure_ascii=False)}
 </user_profile>
@@ -136,74 +138,102 @@ def eligibility_worker_node(state):
 </policy_criteria>
 '''
 
-        result = eligibility_workflow.invoke({
+            result = await eligibility_workflow.ainvoke({
 
-            "messages": [
-                HumanMessage(content=human_msg)
-            ],
+                "messages": [
+                    HumanMessage(content=human_msg)
+                ],
 
-            "user_id": user["uid"],
+                "user_id": user["uid"],
 
-            "policy_id": policy["policy_id"]
-        })
+                "policy_id": policy["policy_id"]
+            })
 
-        output = result["messages"][-1].content
+            output = result["messages"][-1].content
 
-        # markdown fence 제거
-        clean_output = (
-            output
-            .replace("```json", "")
-            .replace("```", "")
-            .strip()
-        )
-
-        try:
-
-            parsed = json.loads(
-                clean_output
+            # markdown fence 제거
+            clean_output = (
+                output
+                .replace("```json", "")
+                .replace("```", "")
+                .strip()
             )
 
-        except Exception as e:
+            try:
 
-            print(
-                "[ERROR] eligibility parsing:",
-                e
-            )
-
-            continue
-
-
-        is_eligible = parsed.get(
-            "is_eligible",
-            False
-        )
-
-        reason = parsed.get(
-            "reason",
-            ""
-        )
-
-        results.append({
-
-            "uid":
-                user["uid"],
-
-            "policy_id":
-                policy["policy_id"],
-
-            "is_eligible":
-                is_eligible,
-
-            # eligible이면 NULL
-            "unmet_conditions":
-                (
-                    None
-                    if is_eligible
-                    else reason
+                parsed = json.loads(
+                    clean_output
                 )
-        })
 
-        time.sleep(0.2)
+            except Exception as e:
+
+                print(
+                    "[ERROR] eligibility parsing:",
+                    e
+                )
+
+                return None
+
+
+            is_eligible = parsed.get(
+                "is_eligible",
+                False
+            )
+
+            reason = parsed.get(
+                "reason",
+                ""
+            )
+
+            return {
+
+                "uid":
+                    user["uid"],
+
+                "policy_id":
+                    policy["policy_id"],
+
+                "is_eligible":
+                    is_eligible,
+
+                # eligible이면 NULL
+                "unmet_conditions":
+                    (
+                        None
+                        if is_eligible
+                        else reason
+                    )
+            }
+
+
+    async def run_parallel():
+
+        semaphore = asyncio.Semaphore(5)
+
+        tasks = [
+
+            process_policy(
+                semaphore,
+                policy
+            )
+
+            for policy in state["policies"]
+        ]
+
+        results = await asyncio.gather(
+            *tasks
+        )
+
+        return [
+
+            r for r in results
+            if r is not None
+        ]
+
+
+    results = asyncio.run(
+        run_parallel()
+    )
 
     return {
         **state,
