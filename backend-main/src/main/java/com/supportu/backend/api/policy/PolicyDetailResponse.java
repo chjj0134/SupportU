@@ -12,7 +12,8 @@ public record PolicyDetailResponse(
         String duration,
         String target,
         String method,
-        List<EligibilityItem> eligibility
+        List<EligibilityItem> eligibility,
+        String detailUrl
 ) {
     public static PolicyDetailResponse from(Policy policy) {
         return new PolicyDetailResponse(
@@ -28,7 +29,8 @@ public record PolicyDetailResponse(
                         new EligibilityItem("지역", toRegionCondition(policy)),
                         new EligibilityItem("소득", firstNonBlank(policy.getIncome(), "제한 없음 또는 확인 필요")),
                         new EligibilityItem("취업 상태", firstNonBlank(policy.getEmployment(), "제한 없음 또는 확인 필요"))
-                )
+                ),
+                policy.getDetailUrl()
         );
     }
 
