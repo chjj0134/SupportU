@@ -397,12 +397,6 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
                 <span style={{ color: "#006a63", fontWeight: 700 }}>24건</span>
               </P>
             </div>
-            <span
-                className="px-3 py-1.5 rounded-full text-xs"
-                style={{ backgroundColor: "rgba(79,209,197,0.2)", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontWeight: 600, border: "1px solid rgba(79,209,197,0.2)" }}
-            >
-            AI가 매칭했어요
-          </span>
           </div>
 
           {/* Policy Grid */}

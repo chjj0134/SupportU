@@ -41,7 +41,6 @@ export interface Policy {
   deadline: string;
   support: string;
   desc: string;
-  match: number;
   region: string;
   bookmarked: boolean;
 }
