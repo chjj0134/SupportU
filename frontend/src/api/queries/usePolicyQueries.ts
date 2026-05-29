@@ -4,7 +4,6 @@ import {
   fetchPolicyDetail,
   fetchRecommendedPolicies,
   fetchBookmarkedPolicies,
-  fetchScrappedPolicies,
   togglePolicyBookmark,
 } from '../policies';
 import { queryKeys } from '../../lib/queryClient';
@@ -51,13 +50,6 @@ export function useBookmarkedPolicies() {
   });
 }
 
-export function useScrappedPolicies() {
-  return useQuery({
-    queryKey: queryKeys.policies.scrapped(),
-    queryFn: fetchScrappedPolicies,
-  });
-}
-
 /**
  * 북마크 토글 mutation - optimistic update 패턴 적용.
  * 사용자 클릭 즉시 UI에 반영하고, 실패 시 롤백한다.
@@ -73,7 +65,6 @@ export function useTogglePolicyBookmark() {
         queryClient.cancelQueries({ queryKey: queryKeys.policies.list() }),
         queryClient.cancelQueries({ queryKey: queryKeys.policies.recommended() }),
         queryClient.cancelQueries({ queryKey: queryKeys.policies.bookmarked() }),
-        queryClient.cancelQueries({ queryKey: queryKeys.policies.scrapped() }),
       ]);
 
       const previousList = queryClient.getQueryData<Policy[]>(queryKeys.policies.list());
@@ -144,7 +135,6 @@ export function useTogglePolicyBookmark() {
       queryClient.invalidateQueries({ queryKey: queryKeys.policies.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.policies.recommended() });
       queryClient.invalidateQueries({ queryKey: queryKeys.policies.bookmarked() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.policies.scrapped() });
     },
   });
 }
