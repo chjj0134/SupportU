@@ -39,6 +39,33 @@ TEXT_COLUMNS = [
     "oend",
 ]
 
+# ────────────────────────────────────────────────────────────
+# [추가] 3b 모델 할루시네이션 패턴 목록
+#        - 모델이 지시문 텍스트를 그대로 값으로 복사하는 경우
+#        - → null로 처리
+# ────────────────────────────────────────────────────────────
+ASSET_HALLUCINATION_PATTERNS = {
+    "자산 조건 원문",
+    "자산 조건",
+    "자산조건",
+    "조건 원문",
+    "자산 무관",
+    "자산무관",
+    "소득 조건 원문",
+    "학력 조건 원문",
+    "자산형성",
+    "연령무관",
+    "전국대상",
+    "전국",
+}
+
+# employment에서 근거 없이 기본값으로 박히는 패턴
+EMPLOYMENT_HALLUCINATION_PATTERNS = {
+    "미해상",
+    "상시",
+    "면접준비 또는 시험준비",
+}
+
 
 def prepare_column_types(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -170,9 +197,45 @@ def normalize_education(value):
     return text
 
 
-def normalize_employment(value):
-    text = normalize_null_like(value)
+# ────────────────────────────────────────────────────────────
+# [수정] normalize_asset
+#        - 3b 할루시네이션 패턴 → null 처리
+# ────────────────────────────────────────────────────────────
+def normalize_asset(value):
+    if is_empty(value):
+        return None
 
+    text = normalize_text(value).strip()
+
+    # 할루시네이션 패턴이면 null
+    if text in ASSET_HALLUCINATION_PATTERNS:
+        return None
+
+    # 기존 null_like 처리
+    return normalize_null_like(value)
+
+
+# ────────────────────────────────────────────────────────────
+# [수정] normalize_employment
+#        - 3b가 dict/JSON을 값으로 반환하는 케이스 처리
+#        - 명확한 할루시네이션 패턴 → null 처리
+# ────────────────────────────────────────────────────────────
+def normalize_employment(value):
+    if is_empty(value):
+        return None
+
+    text = normalize_text(value).strip()
+
+    # dict/JSON 형태면 null (예: "{'status': 'unemployed'}")
+    if text.startswith("{") or text.startswith("["):
+        return None
+
+    # 할루시네이션 패턴이면 null
+    if text in EMPLOYMENT_HALLUCINATION_PATTERNS:
+        return None
+
+    # normalize_null_like 먼저 적용
+    text = normalize_null_like(text)
     if text is None:
         return None
 
@@ -223,11 +286,225 @@ def normalize_disability(value, combined_text=""):
     return None
 
 
+def normalize_income(value):
+    """
+    income에 dict 형태가 들어오면 null 처리.
+    예: {'min': 3000000, 'max': 5000000} → null
+    """
+    if is_empty(value):
+        return None
+
+    text = normalize_text(value).strip()
+
+    if text.startswith("{") or text.startswith("["):
+        return None
+
+    return normalize_null_like(value)
+
+
+def normalize_education_v2(value):
+    """
+    education에 dict 형태가 들어오면 null 처리 또는 표준 레이블 변환.
+    예: {'type': '제한없음'} → null
+        {'type': 'higher', 'level': 'bachelor'} → null
+        {'age_range': '...'} → null (education이 아님)
+    """
+    if is_empty(value):
+        return None
+
+    text = normalize_text(value).strip()
+
+    if text.startswith("{") or text.startswith("["):
+        return None
+
+    return normalize_education(value)
+
+
+def normalize_application_method(value):
+    """
+    application_method에 list/dict 형태가 들어오면 텍스트로 펼쳐서 반환.
+    normalize_support_content와 동일한 _flatten_any 로직 사용.
+    """
+    if is_empty(value):
+        return None
+
+    text = normalize_text(value).strip()
+
+    if text.startswith("[") or text.startswith("{"):
+        import ast
+        try:
+            parsed = ast.literal_eval(text)
+            lines = _flatten_any(parsed)
+            return "\n".join(lines) if lines else None
+        except Exception:
+            return None
+
+    return text
+
+
+def normalize_eligibility_v2(value):
+    """
+    eligibility에 dict 형태가 들어오면 텍스트로 펼쳐서 반환.
+    예: {'age': '만 19세 ~ 만 39세', 'employment_status': '미취업자'} → "만 19세 ~ 만 39세, 미취업자"
+    """
+    if is_empty(value):
+        return None
+
+    text = normalize_text(value).strip()
+
+    if text.startswith("{"):
+        import ast
+        try:
+            parsed = ast.literal_eval(text)
+            if isinstance(parsed, dict):
+                parts = []
+                for k, v in parsed.items():
+                    v = str(v).strip()
+                    if v and v not in ("제한없음", "null", "None", "무관"):
+                        parts.append(v)
+                return ", ".join(parts) if parts else None
+        except Exception:
+            return None
+
+    if text.startswith("["):
+        return None
+
+    if text in ["제한없음", "제한 없음"]:
+        return "제한없음"
+
+    return text
+
+def _flatten_any(obj) -> list:
+    """
+    중첩된 dict/list 구조를 재귀적으로 펼쳐 텍스트 라인 목록으로 반환.
+    지원 패턴:
+      - content/items
+      - item/detail, item/description
+      - name/details, name/description
+      - legal_basis
+      - new_user/regular_user
+      - amount/description
+      - 단순 문자열 list
+    """
+    lines = []
+
+    if isinstance(obj, str):
+        obj = obj.strip()
+        if obj:
+            lines.append(obj)
+
+    elif isinstance(obj, list):
+        # 모든 요소가 문자열이면 쉼표로 이어붙이기
+        if all(isinstance(i, str) for i in obj):
+            joined = ", ".join(i.strip() for i in obj if i.strip())
+            if joined:
+                lines.append(joined)
+        else:
+            for item in obj:
+                lines.extend(_flatten_any(item))
+
+    elif isinstance(obj, dict):
+        # content/items 구조
+        if "content" in obj:
+            header = str(obj["content"]).strip()
+            if header:
+                lines.append(header)
+        if "items" in obj:
+            lines.extend(_flatten_any(obj["items"]))
+
+        # name/details 또는 name/description 구조
+        elif "name" in obj:
+            name = str(obj["name"]).strip()
+            detail = str(obj.get("details") or obj.get("description") or "").strip()
+            if name and detail:
+                lines.append(f"{name}: {detail}")
+            elif name:
+                lines.append(name)
+
+        # item/detail 또는 item/description 구조
+        elif "item" in obj:
+            item_text = str(obj["item"]).strip() if obj.get("item") else ""
+            if item_text:
+                lines.append(item_text)
+            # detail이 list/dict면 재귀, 문자열이면 바로 추가
+            if obj.get("detail"):
+                detail = obj["detail"]
+                if isinstance(detail, (list, dict)):
+                    lines.extend(_flatten_any(detail))
+                elif str(detail).strip():
+                    lines.append(str(detail).strip())
+            if obj.get("description"):
+                desc = obj["description"]
+                if isinstance(desc, (list, dict)):
+                    lines.extend(_flatten_any(desc))
+                elif str(desc).strip():
+                    lines.append(str(desc).strip())
+
+        # legal_basis 구조
+        elif "legal_basis" in obj:
+            basis = str(obj["legal_basis"]).strip()
+            if basis:
+                # 줄바꿈 유지
+                for line in basis.split("\n"):
+                    line = line.strip()
+                    if line:
+                        lines.append(line)
+
+        # new_user/regular_user 구조
+        else:
+            for key in ("new_user", "regular_user"):
+                if key in obj and obj[key]:
+                    lines.append(str(obj[key]).strip())
+
+        # conditions 구조 (공통)
+        if "conditions" in obj:
+            lines.extend(_flatten_any(obj["conditions"]))
+        if "condition" in obj:
+            cond = str(obj["condition"]).strip()
+            if cond and cond not in ("무관", ""):
+                lines.append(cond)
+
+        # amount/description 구조 (공통)
+        if "amount" in obj:
+            amount = str(obj["amount"]).strip()
+            desc = str(obj.get("description", "")).strip()
+            if amount:
+                lines.append(f"{amount} {desc}".strip())
+
+    return [l for l in lines if l]
+
+
+def normalize_support_content(value):
+    """
+    support_content가 list/dict 형태로 들어오면 텍스트로 펼쳐서 반환.
+    단순 패턴: [{'item': ..., 'detail': ...}]
+    중첩 패턴: [{'content': ..., 'items': [...]}]
+    """
+    if is_empty(value):
+        return None
+
+    text = normalize_text(value).strip()
+
+    if text.startswith("[") or text.startswith("{"):
+        import ast
+        try:
+            parsed = ast.literal_eval(text)
+            lines = _flatten_any(parsed)
+            return "\n".join(lines) if lines else None
+        except Exception:
+            return None
+
+    return text
+
 def normalize_eligibility(value):
     if is_empty(value):
         return None
 
     text = normalize_text(value)
+
+    # dict/JSON 형태면 null
+    if text.startswith("{") or text.startswith("["):
+        return None
 
     if text in ["제한없음", "제한 없음"]:
         return "제한없음"
@@ -257,15 +534,21 @@ def clean_common_schema(df: pd.DataFrame, scope: str, default_region: str | None
         df.at[idx, "region"] = normalize_region(row.get("region"), default_region=default_region)
         df.at[idx, "scity"] = normalize_scity(row.get("scity"), combined_text, scope=scope)
 
-        df.at[idx, "income"] = normalize_null_like(row.get("income"))
-        df.at[idx, "asset"] = normalize_null_like(row.get("asset"))
-        df.at[idx, "education"] = normalize_education(row.get("education"))
-        df.at[idx, "employment"] = normalize_employment(row.get("employment"))
+        df.at[idx, "income"] = normalize_income(row.get("income"))              # [수정] dict 감지
+        df.at[idx, "asset"] = normalize_asset(row.get("asset"))                   # [수정] 할루시네이션 필터
+        df.at[idx, "education"] = normalize_education_v2(row.get("education"))   # [수정] dict 감지
+        df.at[idx, "employment"] = normalize_employment(row.get("employment"))  # [수정] 할루시네이션 필터 포함
         df.at[idx, "gender"] = normalize_gender(row.get("gender"), combined_text)
         df.at[idx, "disability"] = normalize_disability(row.get("disability"), combined_text)
 
-        df.at[idx, "eligibility"] = normalize_eligibility(row.get("eligibility"))
+        df.at[idx, "eligibility"] = normalize_eligibility_v2(row.get("eligibility"))   # [수정] dict 펼치기
         df.at[idx, "add_condition"] = normalize_null_like(row.get("add_condition"))
+
+        if "support_content" in df.columns:  # [수정] list of dict → 텍스트 펼치기
+            df.at[idx, "support_content"] = normalize_support_content(row.get("support_content"))
+
+        if "application_method" in df.columns:  # [수정] list of dict → 텍스트 펼치기
+            df.at[idx, "application_method"] = normalize_application_method(row.get("application_method"))
 
         for date_col in ["pstart", "pend", "ostart", "oend"]:
             if date_col in df.columns and is_empty(row.get(date_col)):

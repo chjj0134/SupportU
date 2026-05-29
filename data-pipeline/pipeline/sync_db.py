@@ -179,11 +179,64 @@ def cascade_delete_policies(supabase: Client, policy_ids: list[str]) -> int:
     return len(policy_ids)
 
 
+def get_expired_policy_ids(supabase: Client) -> list[str]:
+    """
+    만료 정책 ID 목록 반환.
+
+    삭제 기준:
+    - pend < today                          → 삭제
+    - pend is null AND oend is null         → 삭제
+    - pend is null AND oend < today         → 삭제
+    - pend is null AND oend >= today        → 유지
+    """
+    from datetime import date
+    today = date.today().isoformat()
+
+    # 1. pend가 오늘 이전인 정책
+    resp_pend = (
+        supabase.table("policies")
+        .select("policy_id")
+        .lt("pend", today)
+        .not_.is_("pend", "null")
+        .execute()
+    )
+    pend_ids = [r["policy_id"] for r in (resp_pend.data or [])]
+
+    # 2. pend is null AND oend is null → 삭제
+    resp_both_null = (
+        supabase.table("policies")
+        .select("policy_id")
+        .is_("pend", "null")
+        .is_("oend", "null")
+        .execute()
+    )
+    both_null_ids = [r["policy_id"] for r in (resp_both_null.data or [])]
+
+    # 3. pend is null AND oend < today → 삭제
+    resp_oend = (
+        supabase.table("policies")
+        .select("policy_id")
+        .is_("pend", "null")
+        .lt("oend", today)
+        .not_.is_("oend", "null")
+        .execute()
+    )
+    oend_expired_ids = [r["policy_id"] for r in (resp_oend.data or [])]
+
+    ids = list(set(pend_ids + both_null_ids + oend_expired_ids))
+    print(f"만료 정책: {len(ids)}개 (기준일: {today})")
+    print(f"  pend 만료: {len(pend_ids)}개")
+    print(f"  pend/oend 모두 null: {len(both_null_ids)}개")
+    print(f"  pend null + oend 만료: {len(oend_expired_ids)}개")
+    return ids
+
+
 def sync_to_supabase(master_csv_path=MASTER_POLICY_PATH):
     """
     master CSV를 기준으로 Supabase를 동기화:
     1. new / updated → upsert
     2. not_seen_latest_run → cascade 삭제
+    3. pend가 오늘보다 이전인 정책 → cascade 삭제
     """
     print("\n" + "=" * 60)
     print("Supabase 동기화 시작")
@@ -196,18 +249,23 @@ def sync_to_supabase(master_csv_path=MASTER_POLICY_PATH):
     # 1. upsert
     upsert_count = upsert_policies(supabase, df)
 
-    # 2. cascade 삭제
+    # 2. not_seen_latest_run cascade 삭제
     gone_ids = df[df["record_status"] == "not_seen_latest_run"]["policy_id"].dropna().tolist()
     delete_count = cascade_delete_policies(supabase, gone_ids)
 
+    # 3. pend 기준 만료 정책 cascade 삭제
+    expired_ids = get_expired_policy_ids(supabase)
+    expired_delete_count = cascade_delete_policies(supabase, expired_ids)
+
     print("\n[동기화 결과]")
-    print(f"  upsert: {upsert_count}개")
-    print(f"  삭제:   {delete_count}개 정책 + 연관 데이터")
+    print(f"  upsert:       {upsert_count}개")
+    print(f"  미노출 삭제:  {delete_count}개 정책 + 연관 데이터")
+    print(f"  만료 삭제:    {expired_delete_count}개 정책 + 연관 데이터")
     print("=" * 60)
 
     return {
         "upsert": upsert_count,
-        "deleted": delete_count,
+        "deleted": delete_count + expired_delete_count,
     }
 
 
