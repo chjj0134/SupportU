@@ -2,7 +2,7 @@ import { useState } from "react";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import type { Policy } from "../../api/types";
 import type { CalendarEvent } from "../../api/calendar";
-import { useBookmarkedPolicies, usePolicyDetail } from "../../api/queries/usePolicyQueries";
+import { useBookmarkedPolicies, usePolicyDetail, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
@@ -536,6 +536,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
   const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
   const { data: bookmarkedPolicies = [] } = useBookmarkedPolicies();
+  const toggleBookmarkMutation = useTogglePolicyBookmark();
   const { data: calendarEvents = [] } = useCalendarEvents();
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
 
@@ -574,6 +575,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [detailPolicyId, setDetailPolicyId] = useState<string | null>(null);
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>("");
   const [policyJourneySteps, setPolicyJourneySteps] = useState<Record<string, number>>({});
+  const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
 
   const firstEventDate = calendarEvents.length > 0
       ? new Date(calendarEvents[0].eventStartAt)
@@ -649,6 +651,19 @@ export function MyPage({ onNavigate }: MyPageProps) {
       if (current.length >= 3) return false;
       return true;
     });
+  };
+
+  const confirmRemoveBookmark = (id: string) => {
+    if (selected.includes(id)) {
+      toggleCompareSelection(id);
+    }
+
+    toggleBookmarkMutation.mutate(
+        { id, bookmarked: true },
+        {
+          onSettled: () => setRemoveConfirmId(null),
+        },
+    );
   };
 
   const clearSelection = () => clearCompareSelection();
@@ -806,9 +821,37 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                     </P>
                                   </button>
 
-                                  <P style={{ fontSize: 13, fontWeight: 700, color: p.deadline === "상시" ? "#006a63" : "#ba1a1a" }}>
-                                    {p.deadline}
-                                  </P>
+                                  <div className="flex items-center gap-2">
+                                    <P style={{ fontSize: 13, fontWeight: 700, color: p.deadline === "상시" ? "#006a63" : "#ba1a1a" }}>
+                                      {p.deadline}
+                                    </P>
+
+                                    <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setRemoveConfirmId(p.id);
+                                        }}
+                                        title="북마크 취소"
+                                        style={{
+                                          background: "none",
+                                          border: "none",
+                                          cursor: "pointer",
+                                          padding: 4,
+                                          display: "flex",
+                                          alignItems: "center",
+                                        }}
+                                    >
+                                      <svg width="18" height="20" viewBox="0 0 18 20" fill="none">
+                                        <path
+                                            d="M1 2C1 1.44772 1.44772 1 2 1H16C16.5523 1 17 1.44772 17 2V18.382C17 18.7607 16.5724 18.9899 16.2764 18.7764L9 13.618L1.7236 18.7764C1.4276 18.9899 1 18.7607 1 18.382V2Z"
+                                            fill="#006a63"
+                                            stroke="#006a63"
+                                            strokeWidth="1.5"
+                                            strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {/* Card Body */}
@@ -1320,6 +1363,82 @@ export function MyPage({ onNavigate }: MyPageProps) {
                 onSchedule={handleSchedulePolicy}
             />
         )}
+
+        {removeConfirmId && (() => {
+          const policy = bookmarkedPolicies.find((p) => p.id === removeConfirmId);
+
+          return (
+              <div
+                  className="fixed inset-0 z-[60] flex items-center justify-center"
+                  style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+                  onClick={() => setRemoveConfirmId(null)}
+              >
+                <div
+                    className="bg-white rounded-2xl p-8 flex flex-col items-center gap-5"
+                    style={{ width: 360, boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(0,106,99,0.08)" }}>
+                    <svg width="28" height="32" viewBox="0 0 28 32" fill="none">
+                      <path
+                          d="M2 3C2 1.89543 2.89543 1 4 1H24C25.1046 1 26 1.89543 26 3V29.382C26 29.7607 25.5724 29.9899 25.2764 29.7764L14 22.118L2.7236 29.7764C2.4276 29.9899 2 29.7607 2 29.382V3Z"
+                          fill="#006a63"
+                          stroke="#006a63"
+                          strokeWidth="1.5"
+                          strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+
+                  <div className="text-center">
+                    <p style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 18, color: "#171d1c", margin: "0 0 8px 0" }}>
+                      북마크를 취소할까요?
+                    </p>
+                    <p style={{ fontFamily: "Pretendard, sans-serif", fontSize: 14, color: "#64748b", margin: 0, lineHeight: 1.6 }}>
+                      <span style={{ fontWeight: 600, color: "#3c4947" }}>{policy?.title}</span><br />
+                      북마크함에서 삭제됩니다.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3 w-full">
+                    <button
+                        onClick={() => setRemoveConfirmId(null)}
+                        className="flex-1 h-12 rounded-xl"
+                        style={{
+                          fontFamily: "Pretendard, sans-serif",
+                          fontSize: 15,
+                          fontWeight: 600,
+                          background: "#f1f5f9",
+                          border: "none",
+                          color: "#64748b",
+                          cursor: "pointer",
+                        }}
+                    >
+                      취소
+                    </button>
+
+                    <button
+                        onClick={() => confirmRemoveBookmark(removeConfirmId)}
+                        disabled={toggleBookmarkMutation.isPending}
+                        className="flex-1 h-12 rounded-xl"
+                        style={{
+                          fontFamily: "Pretendard, sans-serif",
+                          fontSize: 15,
+                          fontWeight: 700,
+                          backgroundColor: "#006a63",
+                          border: "none",
+                          color: "white",
+                          cursor: toggleBookmarkMutation.isPending ? "not-allowed" : "pointer",
+                          opacity: toggleBookmarkMutation.isPending ? 0.65 : 1,
+                        }}
+                    >
+                      예, 삭제할게요
+                    </button>
+                  </div>
+                </div>
+              </div>
+          );
+        })()}
       </div>
   );
 }
