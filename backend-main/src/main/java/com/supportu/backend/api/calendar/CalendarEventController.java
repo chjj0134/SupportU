@@ -14,8 +14,10 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RestController
@@ -99,6 +102,29 @@ public class CalendarEventController {
         UserCalendarEvent savedEvent = calendarEventRepository.save(calendarEvent);
 
         return CalendarEventResponse.from(savedEvent, policy);
+    }
+
+    @PatchMapping("/{cid}/status")
+    @Transactional
+    public CalendarEventResponse updateCalendarEventStatus(
+            @AuthenticationPrincipal OAuth2User oauth2User,
+            @PathVariable Long cid,
+            @RequestBody CalendarEventStatusUpdateRequest request
+    ) {
+        String uid = getGoogleUid(oauth2User);
+
+        if (request.applyStatus() == null || request.applyStatus().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "지원 상태 값이 필요합니다.");
+        }
+
+        UserCalendarEvent calendarEvent = calendarEventRepository.findByCidAndUid(cid, uid)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "일정을 찾을 수 없습니다."));
+
+        calendarEvent.updateApplyStatus(request.applyStatus());
+
+        Policy policy = policyRepository.findById(calendarEvent.getPolicyId()).orElse(null);
+
+        return CalendarEventResponse.from(calendarEvent, policy);
     }
 
     @DeleteMapping("/{cid}")
