@@ -6,6 +6,7 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.calendar.Calendar;
 import com.google.api.services.calendar.model.Event;
 import com.google.api.services.calendar.model.EventDateTime;
+import com.google.api.services.calendar.model.EventReminder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import java.security.GeneralSecurityException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.List;
 
 @Service
 public class GoogleCalendarService {
@@ -36,7 +38,14 @@ public class GoogleCalendarService {
                     .setSummary(title)
                     .setDescription(description)
                     .setStart(toEventDateTime(startAt))
-                    .setEnd(toEventDateTime(endAt));
+                    .setEnd(toEventDateTime(endAt))
+                    .setReminders(new Event.Reminders()
+                            .setUseDefault(false)
+                            .setOverrides(List.of(
+                                    new EventReminder()
+                                            .setMethod("popup")
+                                            .setMinutes(24 * 60)
+                            )));
 
             Event createdEvent = calendar.events()
                     .insert(CALENDAR_ID, event)
