@@ -28,7 +28,11 @@ public record PolicyDetailResponse(
                         new EligibilityItem("연령", toAgeCondition(policy)),
                         new EligibilityItem("지역", toRegionCondition(policy)),
                         new EligibilityItem("소득", firstNonBlank(policy.getIncome(), "제한 없음 또는 확인 필요")),
-                        new EligibilityItem("취업 상태", firstNonBlank(policy.getEmployment(), "제한 없음 또는 확인 필요"))
+                        new EligibilityItem("취업 상태", firstNonBlank(policy.getEmployment(), "제한 없음 또는 확인 필요")),
+                        new EligibilityItem("자산", firstNonBlank(policy.getAsset(), "제한 없음 또는 확인 필요")),
+                        new EligibilityItem("학력", firstNonBlank(policy.getEducation(), "제한 없음 또는 확인 필요")),
+                        new EligibilityItem("장애 여부", firstNonBlank(policy.getDisability(), "제한 없음 또는 확인 필요")),
+                        new EligibilityItem("성별", firstNonBlank(policy.getGender(), "제한 없음 또는 확인 필요"))
                 ),
                 policy.getDetailUrl()
         );
