@@ -1,6 +1,6 @@
 package com.supportu.backend.api.orchestrator;
 
-import com.supportu.backend.domain.orchestrator.OrchestratorClient;
+import com.supportu.backend.domain.orchestrator.OrchestratorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,7 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class OrchestratorController {
 
-    private final OrchestratorClient orchestratorClient;
+    private final OrchestratorService orchestratorService;
 
     @PostMapping("/extract-policy-documents")
     public ExtractPolicyDocumentsResponse extractPolicyDocuments(
@@ -24,7 +24,7 @@ public class OrchestratorController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "정책 ID가 필요합니다.");
         }
 
-        ExtractPolicyDocumentsResponse response = orchestratorClient.extractPolicyDocuments(request.policyId());
+        ExtractPolicyDocumentsResponse response = orchestratorService.extractPolicyDocuments(request.policyId());
 
         if (response == null) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "오케스트레이터 응답이 없습니다.");
