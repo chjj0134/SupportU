@@ -78,3 +78,7 @@ env/
 backend-agent/.venv/
 **/.venv/
 **/venv/
+backend-agent/.venv/
+backend-agent/**/__pycache__/
+backend-agent/.pytest_cache/
+*.pyc
