@@ -14,4 +14,8 @@ public interface UserCalendarEventRepository extends JpaRepository<UserCalendarE
     Optional<UserCalendarEvent> findByCidAndUid(Long cid, String uid);
 
     boolean existsByUidAndPolicyId(String uid, String policyId);
+
+    long countByUid(String uid);
+
+    long countByUidAndApplyStatus(String uid, String applyStatus);
 }

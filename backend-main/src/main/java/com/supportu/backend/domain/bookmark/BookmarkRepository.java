@@ -10,5 +10,7 @@ public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
 
     List<Bookmark> findByUidOrderByCreatedAtDesc(String uid);
 
+    long countByUid(String uid);
+
     void deleteByUidAndPolicyId(String uid, String policyId);
 }
