@@ -27,4 +27,15 @@ public class OrchestratorClient {
                 .retrieve()
                 .body(ExtractPolicyDocumentsResponse.class);
     }
+
+    public void precomputeEligibility(String userId) {
+        restClientBuilder
+                .baseUrl(orchestratorBaseUrl)
+                .build()
+                .post()
+                .uri("/api/orchestrator/precompute-eligibility")
+                .body(Map.of("user_id", userId))
+                .retrieve()
+                .toBodilessEntity();
+    }
 }
