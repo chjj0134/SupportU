@@ -70,3 +70,11 @@ out/
 frontend/dist/
 frontend/.vite/
 *.tsbuildinfo
+
+# Python virtual environments
+.venv/
+venv/
+env/
+backend-agent/.venv/
+**/.venv/
+**/venv/
