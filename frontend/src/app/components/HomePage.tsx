@@ -12,11 +12,53 @@ interface HomePageProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
+function EmptyRecommendedPolicies({ onNavigate }: Pick<HomePageProps, "onNavigate">) {
+  return (
+      <div
+          className="flex min-h-60 w-full flex-col items-center justify-center gap-4 rounded-3xl bg-white px-6 py-10 text-center"
+          style={{ border: "1px solid rgba(0,106,99,0.08)" }}
+      >
+        <div
+            className="flex h-14 w-14 items-center justify-center rounded-full"
+            style={{ backgroundColor: "rgba(79,209,197,0.16)" }}
+        >
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <path d="M7.5 6.5H20.5C21.6046 6.5 22.5 7.39543 22.5 8.5V23L14 18.75L5.5 23V8.5C5.5 7.39543 6.39543 6.5 7.5 6.5Z" stroke="#006a63" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M10.5 11.5H17.5M10.5 15H15.5" stroke="#006a63" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+        <div className="flex flex-col gap-2">
+          <P style={{ fontSize: 22, color: "#171d1c", fontWeight: 700 }}>
+            내 조건에 맞는 공고가 없어요
+          </P>
+          <P style={{ fontSize: 15, color: "#64748b" }}>
+            마이페이지에서 내 정보를 확인하고 조건을 다시 조정해보세요.
+          </P>
+        </div>
+        <button
+            onClick={() => onNavigate("mypage")}
+            className="mt-1 rounded-xl px-5 py-3 transition-all hover:opacity-90"
+            style={{
+              fontFamily: "Pretendard, sans-serif",
+              fontSize: 15,
+              fontWeight: 700,
+              backgroundColor: "#006a63",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+            }}
+        >
+          마이페이지로 이동
+        </button>
+      </div>
+  );
+}
+
 export function HomePage({ onNavigate }: HomePageProps) {
   const { data: user } = useAuthUser();
   const { data: profile } = useProfile();
   const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
-  const { data: recommendedPolicies = [] } = useRecommendedPolicies();
+  const { data: recommendedPolicies = [], error: recommendedPoliciesError } = useRecommendedPolicies();
   const { data: checklist = [] } = useChecklist();
   const toggleMutation = useToggleChecklistItem();
 
@@ -197,8 +239,11 @@ export function HomePage({ onNavigate }: HomePageProps) {
               </button>
             </div>
 
-            <div className="flex gap-6 overflow-x-auto pb-4">
-              {filteredPolicies.map((policy) => (
+            {recommendedPoliciesError || filteredPolicies.length === 0 ? (
+                <EmptyRecommendedPolicies onNavigate={onNavigate} />
+            ) : (
+                <div className="flex gap-6 overflow-x-auto pb-4">
+                  {filteredPolicies.map((policy) => (
                   <div
                       key={policy.id}
                       className="flex-shrink-0 w-80 h-60 bg-white rounded-3xl p-6 flex flex-col justify-between cursor-pointer hover:shadow-md transition-shadow border"
@@ -249,22 +294,23 @@ export function HomePage({ onNavigate }: HomePageProps) {
                       </button>
                     </div>
                   </div>
-              ))}
+                  ))}
 
-              {/* More card */}
-              <div
-                  className="flex-shrink-0 w-80 h-60 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
-                  style={{ border: "2px dashed #cbd5e1" }}
-                  onClick={() => onNavigate("policies")}
-              >
-                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M7 1V13M1 7H13" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
+                  {/* More card */}
+                  <div
+                      className="flex-shrink-0 w-80 h-60 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                      style={{ border: "2px dashed #cbd5e1" }}
+                      onClick={() => onNavigate("policies")}
+                  >
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M7 1V13M1 7H13" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <P style={{ fontSize: 16, color: "#64748b" }}>더 많은 정책 찾기</P>
+                  </div>
                 </div>
-                <P style={{ fontSize: 16, color: "#64748b" }}>더 많은 정책 찾기</P>
-              </div>
-            </div>
+            )}
           </div>
         </main>
 
