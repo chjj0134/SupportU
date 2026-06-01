@@ -63,4 +63,8 @@ public class OrchestratorService {
                 documentResponses
         );
     }
+
+    public void totalBenefit(String userId) {
+        orchestratorClient.totalBenefit(userId);
+    }
 }

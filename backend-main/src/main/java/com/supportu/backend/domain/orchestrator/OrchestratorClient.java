@@ -38,4 +38,15 @@ public class OrchestratorClient {
                 .retrieve()
                 .toBodilessEntity();
     }
+
+    public void totalBenefit(String userId) {
+        restClientBuilder
+                .baseUrl(orchestratorBaseUrl)
+                .build()
+                .post()
+                .uri("/api/orchestrator/total-benefit")
+                .body(Map.of("user_id", userId))
+                .retrieve()
+                .toBodilessEntity();
+    }
 }
