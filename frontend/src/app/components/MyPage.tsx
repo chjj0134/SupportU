@@ -598,6 +598,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const firstDayOfMonth = new Date(calendarYear, calendarMonth - 1, 1).getDay();
   const calendarDays = buildCalendarDays(calendarEvents, calendarYear, calendarMonth);
   const registeredPolicyIds = new Set(calendarEvents.map((event) => event.policyId));
+  const selectedManagedPolicyId = selectedPolicyId || managedPolicies[0]?.id || "";
 
   const totalBenefitAmount = benefitSummary?.totalBenefitAmount ?? 0;
   const totalBenefitManwon = Math.floor(totalBenefitAmount / 10000);
@@ -1096,6 +1097,46 @@ export function MyPage({ onNavigate }: MyPageProps) {
                     <div className="flex gap-6">
                       {/* Left: Policy List - 30% */}
                       <div style={{ width: "30%" }} className="flex flex-col gap-3">
+                        {managedPolicies.length === 0 && (
+                            <div
+                                className="bg-white rounded-2xl p-5 border"
+                                style={{
+                                  borderColor: "rgba(226,232,240,0.8)",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                                }}
+                            >
+                              <div className="flex items-start justify-between mb-3">
+                                <span
+                                    className="px-2.5 py-1 rounded-full text-xs"
+                                    style={{ backgroundColor: "rgba(0,106,99,0.1)", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
+                                >
+                                  관리할 정책 없음
+                                </span>
+                              </div>
+
+                              <P style={{ fontSize: 16, fontWeight: 600, color: "#171d1c", marginBottom: 6, lineHeight: 1.4 }}>
+                                아직 지원 관리 중인 정책이 없어요
+                              </P>
+                              <P style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>
+                                관심 정책에서 지원 일정을 등록하면 여기에 표시됩니다.
+                              </P>
+
+                              <div className="flex items-center justify-between mb-3">
+                                <div
+                                    className="px-3 py-1.5 rounded-lg flex items-center gap-2"
+                                    style={{ backgroundColor: "rgba(0,106,99,0.1)" }}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <circle cx="7" cy="7" r="6" stroke="#006a63" strokeWidth="1.2" />
+                                    <path d="M7 3.5V7L9 9" stroke="#006a63" strokeWidth="1.2" strokeLinecap="round" />
+                                  </svg>
+                                  <P style={{ fontSize: 13, fontWeight: 700, color: "#006a63" }}>일정 미등록</P>
+                                </div>
+                              </div>
+
+                            </div>
+                        )}
+
                         {managedPolicies.map((p) => {
                           const ddayColor = p.dday <= 7 ? "#ba1a1a" : p.dday <= 14 ? "#f97316" : "#006a63";
                           const ddayBg = p.dday <= 7 ? "rgba(186,26,26,0.1)" : p.dday <= 14 ? "rgba(249,115,22,0.1)" : "rgba(0,106,99,0.1)";
@@ -1105,9 +1146,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                   key={p.id}
                                   className="bg-white rounded-2xl p-5 cursor-pointer transition-all border"
                                   style={{
-                                    borderColor: selectedPolicyId === p.id ? "#006a63" : "rgba(226,232,240,0.8)",
-                                    boxShadow: selectedPolicyId === p.id ? "0 0 0 2px rgba(0,106,99,0.2)" : "0 2px 8px rgba(0,0,0,0.05)",
-                                    backgroundColor: selectedPolicyId === p.id ? "rgba(0,106,99,0.02)" : "white",
+                                    borderColor: selectedManagedPolicyId === p.id ? "#006a63" : "rgba(226,232,240,0.8)",
+                                    boxShadow: selectedManagedPolicyId === p.id ? "0 0 0 2px rgba(0,106,99,0.2)" : "0 2px 8px rgba(0,0,0,0.05)",
+                                    backgroundColor: selectedManagedPolicyId === p.id ? "rgba(0,106,99,0.02)" : "white",
                                   }}
                                   onClick={() => setSelectedPolicyId(p.id)}
                               >
@@ -1118,7 +1159,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                           >
                             {p.status}
                           </span>
-                                  {selectedPolicyId === p.id && (
+                                  {selectedManagedPolicyId === p.id && (
                                       <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#006a63" }}>
                                         <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
                                           <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1160,8 +1201,120 @@ export function MyPage({ onNavigate }: MyPageProps) {
                       {/* Right: Policy Detail - 70% */}
                       <div style={{ width: "70%" }}>
                         {(() => {
-                          const selectedPolicy = managedPolicies.find((p) => p.id === selectedPolicyId);
-                          if (!selectedPolicy) return null;
+                          const selectedPolicy = managedPolicies.find((p) => p.id === selectedManagedPolicyId);
+
+                          if (!selectedPolicy) {
+                            const journeySteps = [
+                              { label: "지원 필요", icon: "📝" },
+                              { label: "지원 완료", icon: "✅" },
+                              { label: "결과 대기", icon: "⏳" },
+                              { label: "수혜 완료", icon: "🎉" },
+                            ];
+
+                            return (
+                                <div className="bg-white rounded-2xl p-6 sticky top-24" style={{ border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+                                  {/* Header */}
+                                  <div className="pb-4 mb-5 border-b" style={{ borderColor: "#e9efed" }}>
+                                    <P style={{ fontSize: 20, fontWeight: 700, color: "#171d1c", marginBottom: 4 }}>관리할 정책을 기다리고 있어요</P>
+                                    <P style={{ fontSize: 13, color: "#64748b" }}>지원 일정을 등록하면 정책별 관리 내용이 채워집니다.</P>
+                                  </div>
+
+                                  {/* Journey Steps */}
+                                  <div className="mb-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                        <path d="M2 9H16M16 9L12 5M16 9L12 13" stroke="#006a63" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                      </svg>
+                                      <P style={{ fontSize: 16, fontWeight: 700, color: "#171d1c" }}>지원 여정</P>
+                                    </div>
+
+                                    <div className="flex items-center justify-between relative">
+                                      <div
+                                          className="absolute top-6 left-0 right-0 h-1 rounded-full"
+                                          style={{ backgroundColor: "#e9efed", zIndex: 0, marginLeft: "12px", marginRight: "12px" }}
+                                      />
+
+                                      {journeySteps.map((step, idx) => (
+                                          <div
+                                              key={idx}
+                                              className="flex flex-col items-center gap-2 relative"
+                                              style={{ flex: 1, zIndex: 1 }}
+                                          >
+                                            <div
+                                                className="w-12 h-12 rounded-full flex items-center justify-center"
+                                                style={{
+                                                  backgroundColor: "white",
+                                                  border: "3px solid #e9efed",
+                                                }}
+                                            >
+                                              <P style={{ fontSize: 18 }}>{step.icon}</P>
+                                            </div>
+                                            <P
+                                                style={{
+                                                  fontSize: 12,
+                                                  fontWeight: 500,
+                                                  color: "#94a3b8",
+                                                  textAlign: "center",
+                                                  whiteSpace: "nowrap",
+                                                }}
+                                            >
+                                              {step.label}
+                                            </P>
+                                          </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Schedule Section */}
+                                  <div className="mb-6">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                        <rect x="2" y="3" width="14" height="13" rx="2" stroke="#006a63" strokeWidth="1.3" />
+                                        <path d="M6 1V5M12 1V5M2 7H16" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" />
+                                      </svg>
+                                      <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c" }}>일정 관리</P>
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                      <div className="p-3 rounded-lg" style={{ backgroundColor: "rgba(245,251,248,0.8)", border: "1px solid rgba(187,201,199,0.3)" }}>
+                                        <P style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>마감일</P>
+                                        <P style={{ fontSize: 15, fontWeight: 700, color: "#64748b" }}>등록된 일정이 없습니다.</P>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Documents Checklist */}
+                                  <div className="mb-6">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center gap-2">
+                                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                          <path d="M11 2H4C3.44772 2 3 2.44772 3 3V15C3 15.5523 3.44772 16 4 16H14C14.5523 16 15 15.5523 15 15V6L11 2Z" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                                          <path d="M11 2V6H15" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                        <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c" }}>지원 서류</P>
+                                      </div>
+                                      <span
+                                          className="px-2 py-1 rounded-full text-xs"
+                                          style={{ backgroundColor: "rgba(0,106,99,0.1)", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
+                                      >
+                                        0/0
+                                      </span>
+                                    </div>
+                                    <div className="p-3 rounded-lg" style={{ border: "1px solid rgba(226,232,240,0.8)" }}>
+                                      <P style={{ fontSize: 14, color: "#64748b" }}>아직 확인할 지원 서류가 없습니다.</P>
+                                    </div>
+                                  </div>
+
+                                  {/* Action Button */}
+                                  <button
+                                      disabled
+                                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl"
+                                      style={{ backgroundColor: "white", border: "1.5px solid #bbc9c7", color: "#94a3b8", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: "not-allowed" }}
+                                  >
+                                    원본 공고가 아직 없습니다
+                                  </button>
+                                </div>
+                            );
+                          }
 
                           const completedDocs = selectedPolicy.documents.filter(d => d.checked).length;
                           const totalDocs = selectedPolicy.documents.length;
