@@ -7,7 +7,7 @@ import { fetchPolicyDetail } from "../../api/policies";
 import { queryKeys } from "../../lib/queryClient";
 import { useBookmarkedPolicies, usePolicyDetail, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
-import { useProfile } from "../../api/queries/useProfileQueries";
+import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
 import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
@@ -25,6 +25,37 @@ type MyPagePolicy = Policy & {
 };
 
 type PolicyCategoryLabel = "주거" | "일자리" | "복지";
+type ProfileInterest = "주거" | "일자리" | "복지";
+
+type ProfileFormState = {
+  email: string;
+  age: string;
+  gender: string;
+  region: string;
+  district: string;
+  education: string;
+  employmentStatus: string;
+  hasDisability: boolean;
+  annualIncome: string;
+  assets: string;
+  createdAt: string;
+  interests: ProfileInterest[];
+};
+
+const emptyProfileData: ProfileFormState = {
+  email: "",
+  age: "",
+  gender: "",
+  region: "",
+  district: "",
+  education: "",
+  employmentStatus: "",
+  hasDisability: false,
+  annualIncome: "",
+  assets: "",
+  createdAt: "",
+  interests: [],
+};
 
 function getPolicyCategoryLabel(policy: MyPagePolicy): PolicyCategoryLabel {
   if (policy.categoryKr === "주거" || policy.categoryKr === "일자리" || policy.categoryKr === "복지") {
@@ -546,6 +577,7 @@ interface MyPageProps {
 export function MyPage({ onNavigate }: MyPageProps) {
   const { data: user } = useAuthUser();
   const { data: profile } = useProfile();
+  const saveProfileMutation = useSaveProfile();
   const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
   const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
   const { data: bookmarkedPolicies = [] } = useBookmarkedPolicies();
@@ -615,44 +647,37 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   // Profile state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [profileData, setProfileData] = useState({
-    userId: "jiwon_kim_2024",
-    age: 26,
-    gender: "여성",
-    region: "서울특별시",
-    district: "강남구",
-    education: "대학교 졸업",
-    employmentStatus: "구직 중",
-    hasDisability: false,
-    annualIncome: 0,
-    assets: "5,000만원 미만",
-    createdAt: "2024-03-15",
-    interests: ["주거", "일자리"] as ("주거" | "일자리" | "복지")[],
-  });
+  const [profileData, setProfileData] = useState<ProfileFormState>(emptyProfileData);
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile) {
+      setProfileData((prev) => ({
+        ...emptyProfileData,
+        email: user?.email ?? prev.email,
+      }));
+      return;
+    }
 
     setProfileData({
-      userId: user?.email ?? profile.uid,
-      age: profile.age ?? 0,
+      email: user?.email ?? "",
+      age: profile.age != null ? String(profile.age) : "",
       gender: profile.gender ?? "",
       region: profile.city ?? "",
       district: profile.scity ?? "",
       education: profile.education ?? "",
       employmentStatus: profile.employment ?? "",
       hasDisability: !!profile.disability,
-      annualIncome: profile.incomeInteger ?? 0,
+      annualIncome: profile.incomeInteger != null ? String(profile.incomeInteger) : "",
       assets: profile.asset ?? "",
       createdAt: profile.createdAt ?? "",
-      interests: profile.preferredCategories.filter(
-          (category): category is "주거" | "일자리" | "복지" =>
+      interests: (profile.preferredCategories ?? []).filter(
+          (category): category is ProfileInterest =>
               category === "주거" || category === "일자리" || category === "복지",
       ),
     });
   }, [profile, user?.email]);
 
-  const toggleInterest = (category: "주거" | "일자리" | "복지") => {
+  const toggleInterest = (category: ProfileInterest) => {
     if (!isEditingProfile) return;
     setProfileData((prev) => ({
       ...prev,
@@ -663,8 +688,23 @@ export function MyPage({ onNavigate }: MyPageProps) {
   };
 
   const handleSaveProfile = () => {
-    // 여기서 저장 로직 처리
-    setIsEditingProfile(false);
+    saveProfileMutation.mutate(
+        {
+          age: Number(profileData.age) || 0,
+          gender: profileData.gender,
+          city: profileData.region,
+          scity: profileData.district,
+          education: profileData.education,
+          employment: profileData.employmentStatus,
+          disability: profileData.hasDisability,
+          incomeInteger: Number(profileData.annualIncome) || 0,
+          asset: profileData.assets,
+          preferredCategories: profileData.interests,
+        },
+        {
+          onSuccess: () => setIsEditingProfile(false),
+        },
+    );
   };
 
   const profileName = user?.name ?? "청년";
@@ -1536,7 +1576,223 @@ export function MyPage({ onNavigate }: MyPageProps) {
           {mainTab === "profile" && (
               <div className="max-w-4xl mx-auto">
                 <div className="rounded-2xl p-8 flex flex-col gap-8" style={{ backgroundColor: "white", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-                  <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>개인 정보 수정</P>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <P style={{ fontSize: 20, fontWeight: 700, color: "#171d1c" }}>개인 정보 수정</P>
+                      <P style={{ fontSize: 14, color: "#64748b", marginTop: 4 }}>내 조건에 맞는 정책 추천에 사용되는 정보입니다.</P>
+                    </div>
+                    {isEditingProfile ? (
+                        <div className="flex gap-3">
+                          <button
+                              onClick={() => setIsEditingProfile(false)}
+                              className="px-5 py-2.5 rounded-xl"
+                              style={{ backgroundColor: "white", border: "1px solid #e3e9e7", color: "#3c4947", cursor: "pointer", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700 }}
+                          >
+                            취소
+                          </button>
+                          <button
+                              onClick={handleSaveProfile}
+                              disabled={saveProfileMutation.isPending}
+                              className="px-5 py-2.5 rounded-xl"
+                              style={{ backgroundColor: "#006a63", border: "none", color: "white", cursor: saveProfileMutation.isPending ? "not-allowed" : "pointer", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, opacity: saveProfileMutation.isPending ? 0.7 : 1 }}
+                          >
+                            {saveProfileMutation.isPending ? "저장 중..." : "변경사항 저장"}
+                          </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsEditingProfile(true)}
+                            className="px-5 py-2.5 rounded-xl"
+                            style={{ backgroundColor: "#006a63", border: "none", color: "white", cursor: "pointer", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700 }}
+                        >
+                          정보 수정하기
+                        </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>이메일</P>
+                      <input
+                          type="text"
+                          value={profileData.email}
+                          disabled
+                          placeholder="정보 없음"
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: "#f8fafb", color: profileData.email ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>나이</P>
+                      <input
+                          type="number"
+                          value={profileData.age}
+                          onChange={(e) => setProfileData({ ...profileData, age: e.target.value })}
+                          disabled={!isEditingProfile}
+                          placeholder="정보 없음"
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.age ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>성별</P>
+                      <select
+                          value={profileData.gender}
+                          onChange={(e) => setProfileData({ ...profileData, gender: e.target.value })}
+                          disabled={!isEditingProfile}
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.gender ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      >
+                        <option value="">정보 없음</option>
+                        <option value="남성">남성</option>
+                        <option value="여성">여성</option>
+                        <option value="기타">기타</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>지역</P>
+                      <select
+                          value={profileData.region}
+                          onChange={(e) => setProfileData({ ...profileData, region: e.target.value })}
+                          disabled={!isEditingProfile}
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.region ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      >
+                        <option value="">정보 없음</option>
+                        <option value="서울특별시">서울특별시</option>
+                        <option value="경기도">경기도</option>
+                        <option value="인천광역시">인천광역시</option>
+                        <option value="부산광역시">부산광역시</option>
+                        <option value="대구광역시">대구광역시</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>시/군/구</P>
+                      <input
+                          type="text"
+                          value={profileData.district}
+                          onChange={(e) => setProfileData({ ...profileData, district: e.target.value })}
+                          disabled={!isEditingProfile}
+                          placeholder="정보 없음"
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.district ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>학력</P>
+                      <select
+                          value={profileData.education}
+                          onChange={(e) => setProfileData({ ...profileData, education: e.target.value })}
+                          disabled={!isEditingProfile}
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.education ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      >
+                        <option value="">정보 없음</option>
+                        <option value="고등학교 졸업">고등학교 졸업</option>
+                        <option value="대학교 재학">대학교 재학</option>
+                        <option value="대학교 졸업">대학교 졸업</option>
+                        <option value="대학원 재학">대학원 재학</option>
+                        <option value="대학원 졸업">대학원 졸업</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>고용 상태</P>
+                      <select
+                          value={profileData.employmentStatus}
+                          onChange={(e) => setProfileData({ ...profileData, employmentStatus: e.target.value })}
+                          disabled={!isEditingProfile}
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.employmentStatus ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      >
+                        <option value="">정보 없음</option>
+                        <option value="구직 중">구직 중</option>
+                        <option value="재직 중">재직 중</option>
+                        <option value="자영업">자영업</option>
+                        <option value="프리랜서">프리랜서</option>
+                        <option value="학생">학생</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>연소득</P>
+                      <input
+                          type="number"
+                          value={profileData.annualIncome}
+                          onChange={(e) => setProfileData({ ...profileData, annualIncome: e.target.value })}
+                          disabled={!isEditingProfile}
+                          placeholder="정보 없음"
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.annualIncome ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>자산</P>
+                      <select
+                          value={profileData.assets}
+                          onChange={(e) => setProfileData({ ...profileData, assets: e.target.value })}
+                          disabled={!isEditingProfile}
+                          className="h-12 rounded-xl px-4"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.assets ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      >
+                        <option value="">정보 없음</option>
+                        <option value="5,000만원 미만">5,000만원 미만</option>
+                        <option value="5,000만원 이상 ~ 1억원 미만">5,000만원 이상 ~ 1억원 미만</option>
+                        <option value="1억원 이상 ~ 3억원 미만">1억원 이상 ~ 3억원 미만</option>
+                        <option value="3억원 이상">3억원 이상</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>장애 여부</P>
+                      <button
+                          onClick={() => isEditingProfile && setProfileData({ ...profileData, hasDisability: !profileData.hasDisability })}
+                          disabled={!isEditingProfile}
+                          className="h-12 rounded-xl px-4 text-left"
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: "#171d1c", cursor: isEditingProfile ? "pointer" : "default", fontFamily: "Pretendard, sans-serif" }}
+                      >
+                        {profileData.hasDisability ? "있음" : profile ? "없음" : "정보 없음"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>관심 분야</P>
+                    <div className="flex gap-2">
+                      {(["주거", "일자리", "복지"] as const).map((category) => {
+                        const isSelected = profileData.interests.includes(category);
+
+                        return (
+                            <button
+                                key={category}
+                                onClick={() => toggleInterest(category)}
+                                disabled={!isEditingProfile}
+                                className="px-4 py-2 rounded-full"
+                                style={{
+                                  backgroundColor: isSelected ? "rgba(0,106,99,0.1)" : "white",
+                                  color: isSelected ? "#006a63" : "#64748b",
+                                  border: `1px solid ${isSelected ? "rgba(0,106,99,0.18)" : "#e3e9e7"}`,
+                                  cursor: isEditingProfile ? "pointer" : "default",
+                                  fontFamily: "Pretendard, sans-serif",
+                                  fontSize: 14,
+                                  fontWeight: isSelected ? 700 : 500,
+                                }}
+                            >
+                              {category}
+                            </button>
+                        );
+                      })}
+                      {profileData.interests.length === 0 && (
+                          <P style={{ fontSize: 13, color: "#94a3b8", alignSelf: "center" }}>정보 없음</P>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
           )}
