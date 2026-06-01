@@ -5,13 +5,14 @@ import type { Policy, PolicyDetail } from "../../api/types";
 import type { CalendarEvent } from "../../api/calendar";
 import { fetchPolicyDetail } from "../../api/policies";
 import { queryKeys } from "../../lib/queryClient";
-import { useBookmarkedPolicies, usePolicyDetail, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
+import { useBookmarkedPolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
 import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
+import { PolicyDetailSidePanel } from "./common/PolicyDetailSidePanel";
 import { getCategoryStyle } from "../../constants/categories";
 
 /* ─────────────────────────── Data ─────────────────────────── */
@@ -170,207 +171,6 @@ function buildCalendarDays(
       today: today.getFullYear() === year && today.getMonth() + 1 === month && today.getDate() === day,
     };
   });
-}
-
-/* ─────────────────────────── Policy Detail Side Panel ─────────────────────────── */
-
-function PolicyDetailSidePanel({
-                                 policyId,
-                                 policies,
-                                 onClose,
-                                 onSchedule,
-                               }: {
-  policyId: string;
-  policies: MyPagePolicy[];
-  onClose: () => void;
-  onSchedule: (id: string) => void;
-}) {
-  const [applied, setApplied] = useState(false);
-  const { data: detail } = usePolicyDetail(policyId);
-  const policy = policies.find((p) => p.id === policyId);
-
-  if (!policy) return null;
-
-  const handleApply = () => {
-    setApplied(true);
-    onSchedule(policyId);
-    setTimeout(() => setApplied(false), 3000);
-  };
-
-  const categoryLabel = getPolicyCategoryLabel(policy);
-
-  const categoryBg: Record<string, string> = {
-    주거: "#eff6ff",
-    일자리: "#f0fdf4",
-    복지: "#faf5ff",
-  };
-
-  return (
-      <>
-        {/* Overlay */}
-        <div
-            className="fixed inset-0 z-50 transition-opacity duration-300"
-            style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
-            onClick={onClose}
-        />
-
-        {/* Side Panel */}
-        <div
-            className="fixed top-0 right-0 bottom-0 z-50 bg-white overflow-y-auto animate-slide-in"
-            style={{
-              width: "50%",
-              boxShadow: "-4px 0 24px rgba(0,0,0,0.15)",
-              animation: "slideIn 0.3s ease-out",
-            }}
-        >
-          {/* Header */}
-          <div
-              className="sticky top-0 z-10 px-8 py-5 flex items-center justify-between border-b"
-              style={{ backgroundColor: "rgba(255,255,255,0.95)", backdropFilter: "blur(8px)", borderColor: "#e9efed" }}
-          >
-            <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>공고 상세</P>
-            <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
-                style={{ background: "none", border: "none", cursor: "pointer" }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1L13 13M13 1L1 13" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="px-8 py-8 pb-32">
-            {/* Policy Header */}
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                <span
-                    className="px-2.5 py-1 rounded text-xs"
-                    style={{ backgroundColor: categoryColor[categoryLabel].bg, color: categoryColor[categoryLabel].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
-                >
-                  {categoryLabel}
-                </span>
-                  <P style={{ fontSize: 13, color: policy.deadline === "상시" ? "#006a63" : "#ba1a1a", fontWeight: 700 }}>{policy.deadline}</P>
-                </div>
-                <h2 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 26, color: "#171d1c", margin: "0 0 4px 0" }}>
-                  {policy.title}
-                </h2>
-                <P style={{ fontSize: 15, color: "#3c4947" }}>{policy.org}</P>
-              </div>
-              <div
-                  className="flex flex-col items-end gap-1"
-                  style={{ backgroundColor: categoryBg[categoryLabel] || "#f1f5f9", borderRadius: 12, padding: "12px 16px" }}
-              >
-                <P style={{ fontSize: 12, color: "#3c4947" }}>지원 규모</P>
-                <P style={{ fontSize: 18, color: "#006a63", fontWeight: 700 }}>{policy.support}</P>
-              </div>
-            </div>
-
-            {/* Overview Card */}
-            <div
-                className="rounded-2xl p-6 mb-6"
-                style={{ border: "1px solid rgba(79,209,197,0.3)", background: "rgba(245,251,248,0.5)" }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <circle cx="9" cy="9" r="8" stroke="#006A63" strokeWidth="1.5" />
-                  <path d="M9 5V9.5L12 11" stroke="#006A63" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                <P style={{ fontSize: 16, color: "#006a63", fontWeight: 700 }}>지원 개요</P>
-              </div>
-              <P style={{ fontSize: 15, color: "#3c4947", lineHeight: 1.7 }}>{detail?.fullDesc ?? "정보를 불러오는 중..."}</P>
-              <button
-                  className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg transition-all hover:bg-slate-100"
-                  style={{ fontFamily: "Pretendard, sans-serif", fontSize: 14, color: "#006a63", fontWeight: 600, background: "white", border: "1.5px solid rgba(79,209,197,0.4)", cursor: "pointer" }}
-                  onClick={() => window.open(`https://example.com/policy/${policy.id}`, '_blank')}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
-                  <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                원본 공고 보러가기
-              </button>
-            </div>
-
-            {/* Benefits Summary */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between pb-3 mb-4 border-b" style={{ borderColor: "rgba(187,201,199,0.3)" }}>
-                <h3 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 20, color: "#171d1c", margin: 0 }}>지원 혜택 정리</h3>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {(detail?.benefits ?? []).map((benefit, idx) => (
-                    <div
-                        key={idx}
-                        className="flex items-center gap-4 p-4 rounded-xl"
-                        style={{ backgroundColor: "rgba(245,251,248,0.5)", border: "1px solid rgba(187,201,199,0.3)" }}
-                    >
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#006a63" }}>
-                        <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
-                          <path d="M1 5L4.5 8.5L11 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
-                      <P style={{ fontSize: 15, color: "#171d1c", fontWeight: 500 }}>{benefit}</P>
-                    </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Sticky Bottom CTA */}
-          <div
-              className="fixed bottom-0 right-0 px-8 py-6 flex flex-col gap-3"
-              style={{ width: "50%", backgroundColor: "rgba(255,255,255,0.95)", backdropFilter: "blur(10px)", borderTop: "1px solid #e9efed" }}
-          >
-            {applied ? (
-                <div
-                    className="h-14 rounded-xl flex items-center justify-center gap-2"
-                    style={{ backgroundColor: "#f0fdf4", border: "1px solid #16a34a" }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="10" r="9" fill="#16a34a" />
-                    <path d="M6 10L9 13L14 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <P style={{ fontSize: 16, color: "#16a34a", fontWeight: 700 }}>일정이 등록되었습니다!</P>
-                </div>
-            ) : (
-                <button
-                    className="h-14 rounded-xl flex items-center justify-center w-full gap-2 transition-all hover:opacity-90 active:scale-95"
-                    style={{ backgroundColor: "#006a63", boxShadow: "0 8px 10px rgba(0,106,99,0.25)", fontFamily: "Pretendard, sans-serif", fontSize: 17, fontWeight: 700, color: "white", border: "none", cursor: "pointer" }}
-                    onClick={handleApply}
-                >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <rect x="2" y="3" width="16" height="15" rx="2" stroke="white" strokeWidth="1.5" />
-                    <path d="M6 1V5M14 1V5M2 8H18" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M6 12H10M6 15H8" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                  지원 일정 관리하기
-                </button>
-            )}
-            <div className="flex items-center justify-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" stroke="rgba(60,73,71,0.6)" strokeWidth="1.2" />
-                <path d="M8 5V8.5L10.5 10" stroke="rgba(60,73,71,0.6)" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              <P style={{ fontSize: 13, color: "rgba(60,73,71,0.8)" }}>AI 에이전트가 일정과 필수 서류를 자동으로 정리해 드려요</P>
-            </div>
-          </div>
-
-          <style>{`
-          @keyframes slideIn {
-            from {
-              transform: translateX(100%);
-            }
-            to {
-              transform: translateX(0);
-            }
-          }
-        `}</style>
-        </div>
-      </>
-  );
 }
 
 /* ─────────────────────────── Compare Modal ─────────────────────────── */
@@ -744,14 +544,24 @@ export function MyPage({ onNavigate }: MyPageProps) {
     toggleBookmarkMutation.mutate(
         { id, bookmarked: true },
         {
-          onSettled: () => setRemoveConfirmId(null),
+          onSettled: () => {
+            setRemoveConfirmId(null);
+            if (detailPolicyId === id) {
+              setDetailPolicyId(null);
+            }
+          },
         },
     );
   };
 
+  const requestRemoveBookmarkFromDetail = (id: string) => setRemoveConfirmId(id);
+
   const clearSelection = () => clearCompareSelection();
 
   const selectedPolicies = bookmarkedPolicies.filter((p) => selected.includes(p.id));
+  const detailPolicy = detailPolicyId
+      ? bookmarkedPolicies.find((policy) => policy.id === detailPolicyId)
+      : null;
 
   const groupedByCategory = ["주거", "일자리", "복지"].map((cat) => ({
     category: cat as "주거" | "일자리" | "복지",
@@ -1866,12 +1676,12 @@ export function MyPage({ onNavigate }: MyPageProps) {
             />
         )}
 
-        {detailPolicyId && (
+        {detailPolicy && (
             <PolicyDetailSidePanel
-                policyId={detailPolicyId}
-                policies={bookmarkedPolicies}
+                policy={detailPolicy}
                 onClose={() => setDetailPolicyId(null)}
-                onSchedule={handleSchedulePolicy}
+                isBookmarked
+                onToggleBookmark={requestRemoveBookmarkFromDetail}
             />
         )}
 
