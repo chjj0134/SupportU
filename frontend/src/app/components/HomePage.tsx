@@ -63,7 +63,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const toggleMutation = useToggleChecklistItem();
 
   const [activeFilter, setActiveFilter] = useState("전체");
-  const greetingName = profile?.name ?? user?.name ?? "청년";
+  const greetingName = user?.name ?? "청년";
 
   const doneCount = checklist.filter((i) => i.done).length;
   const progress = checklist.length === 0 ? 0 : Math.round((doneCount / checklist.length) * 100);

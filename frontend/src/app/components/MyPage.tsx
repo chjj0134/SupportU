@@ -634,7 +634,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
     if (!profile) return;
 
     setProfileData({
-      userId: profile.userId ?? profile.uid,
+      userId: user?.email ?? profile.uid,
       age: profile.age ?? 0,
       gender: profile.gender ?? "",
       region: profile.city ?? "",
@@ -650,7 +650,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
               category === "주거" || category === "일자리" || category === "복지",
       ),
     });
-  }, [profile]);
+  }, [profile, user?.email]);
 
   const toggleInterest = (category: "주거" | "일자리" | "복지") => {
     if (!isEditingProfile) return;
@@ -667,7 +667,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
     setIsEditingProfile(false);
   };
 
-  const profileName = profile?.name ?? user?.name ?? "청년";
+  const profileName = user?.name ?? "청년";
   const profileSummary = [
     profile?.age ? `만 ${profile.age}세` : null,
     [profile?.city, profile?.scity].filter(Boolean).join(" ") || null,
