@@ -7,7 +7,6 @@ import { useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQ
 import { usePolicyFiltersStore } from "../../stores/usePolicyFiltersStore";
 import { P } from "./common/Typography";
 import { Spinner } from "./common/Spinner";
-import { ErrorMessage } from "./common/ErrorMessage";
 import { getCategoryStyle, getDeadlineColor } from "../../constants/categories";
 
 const categoryColor = {
@@ -256,8 +255,57 @@ interface PolicyListPageProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
+function EmptyPoliciesState({ onNavigate }: Pick<PolicyListPageProps, "onNavigate">) {
+  return (
+      <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
+        <main className="max-w-[1280px] mx-auto px-8 py-10">
+          <div
+              className="flex min-h-[520px] flex-col items-center justify-center gap-5 rounded-2xl bg-white px-6 text-center"
+              style={{
+                border: "1px solid rgba(187,201,199,0.4)",
+                boxShadow: "0 8px 24px -4px rgba(79,209,197,0.06)",
+              }}
+          >
+            <div
+                className="flex h-16 w-16 items-center justify-center rounded-full"
+                style={{ backgroundColor: "rgba(79,209,197,0.16)" }}
+            >
+              <svg width="30" height="30" viewBox="0 0 30 30" fill="none" aria-hidden="true">
+                <path d="M8 7.5H22C23.1046 7.5 24 8.39543 24 9.5V24L15 19.5L6 24V9.5C6 8.39543 6.89543 7.5 8 7.5Z" stroke="#006a63" strokeWidth="2" strokeLinejoin="round" />
+                <path d="M11 12.5H19M11 16H17" stroke="#006a63" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="flex flex-col gap-2">
+              <h1 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 28, color: "#171d1c", margin: 0 }}>
+                내 조건에 맞는 공고가 없어요
+              </h1>
+              <P style={{ fontSize: 15, color: "#64748b" }}>
+                마이페이지에서 내 정보를 확인하고 조건을 다시 조정해보세요.
+              </P>
+            </div>
+            <button
+                onClick={() => onNavigate("mypage")}
+                className="mt-2 rounded-xl px-6 py-3 transition-all hover:opacity-90"
+                style={{
+                  fontFamily: "Pretendard, sans-serif",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  backgroundColor: "#006a63",
+                  color: "white",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+            >
+              마이페이지로 이동
+            </button>
+          </div>
+        </main>
+      </div>
+  );
+}
+
 export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
-  const { data: policies = [], isLoading, error, refetch } = usePolicies();
+  const { data: policies = [], isLoading, error } = usePolicies();
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const [searchParams, setSearchParams] = useSearchParams();
   // 필터/정렬은 Zustand store에서 가져와 페이지 간 이동 시에도 유지
@@ -344,11 +392,11 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
   }
 
   if (error) {
-    return (
-        <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
-          <ErrorMessage error={error} onRetry={refetch} />
-        </div>
-    );
+    return <EmptyPoliciesState onNavigate={onNavigate} />;
+  }
+
+  if (policies.length === 0) {
+    return <EmptyPoliciesState onNavigate={onNavigate} />;
   }
 
   return (
