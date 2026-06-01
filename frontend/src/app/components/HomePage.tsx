@@ -59,10 +59,11 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const { data: profile } = useProfile();
   const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
   const { data: recommendedPolicies = [], error: recommendedPoliciesError } = useRecommendedPolicies();
-  const { data: checklist = [] } = useChecklist();
+  const { data: checklist = [], isLoading: isChecklistLoading, error: checklistError } = useChecklist();
   const toggleMutation = useToggleChecklistItem();
 
   const [activeFilter, setActiveFilter] = useState("전체");
+  const greetingName = profile?.name ?? user?.name ?? "청년";
 
   const doneCount = checklist.filter((i) => i.done).length;
   const progress = checklist.length === 0 ? 0 : Math.round((doneCount / checklist.length) * 100);
@@ -94,7 +95,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
           <div className="flex items-end justify-between">
             <div className="flex flex-col gap-2">
               <h1 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 40, color: "#171d1c", letterSpacing: "-1px", margin: 0 }}>
-                안녕하세요, {user?.name ?? "청년"}님 👋
+                안녕하세요, {greetingName}님 👋
               </h1>
               <P style={{ fontSize: 18, color: "#64748b", margin: 0 }}>오늘도 맞춤 정책을 확인해보세요.</P>
             </div>
@@ -110,55 +111,87 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 <button style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}>•••</button>
               </div>
 
-              <div className="flex flex-col gap-2">
-                {checklist.map((item) => (
-                    <div
-                        key={item.id}
-                        className="flex items-center gap-4 p-3 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={() => toggleItem(item.id, item.done)}
-                    >
-                      <div
-                          className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 transition-colors"
-                          style={{
-                            backgroundColor: item.done ? "#4fd1c5" : "transparent",
-                            border: item.done ? "2px solid #4fd1c5" : "2px solid #cbd5e1",
-                          }}
-                      >
-                        {item.done && (
-                            <svg width="12" height="9" viewBox="0 0 12 9" fill="none">
-                              <path d="M1 4L4.5 7.5L11 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 flex items-center justify-between">
-                        <P
-                            style={{
-                              fontSize: 16,
-                              fontWeight: 500,
-                              color: item.done ? "#94a3b8" : "#171d1c",
-                              textDecoration: item.done ? "line-through" : "none",
-                            }}
-                        >
-                          {item.label}
-                        </P>
-                        <div className="flex items-center gap-2">
-                      <span
-                          className="px-2 py-1 rounded text-xs font-bold"
-                          style={{ backgroundColor: item.deadlineBg, color: item.deadlineColor }}
-                      >
-                        {item.deadline}
-                      </span>
-                          <span
-                              className="px-2 py-1 rounded text-xs"
-                              style={{ backgroundColor: item.categoryBg, color: item.categoryColor, fontFamily: "Pretendard, sans-serif" }}
-                          >
-                        {item.category}
-                      </span>
+              {isChecklistLoading ? (
+                  <div className="flex flex-col gap-2">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                        <div key={index} className="flex items-center gap-4 p-3 rounded-xl">
+                          <div className="w-6 h-6 rounded" style={{ backgroundColor: "#f1f5f9" }} />
+                          <div className="flex-1 h-4 rounded" style={{ backgroundColor: "#f1f5f9" }} />
+                          <div className="w-20 h-6 rounded" style={{ backgroundColor: "#f1f5f9" }} />
                         </div>
-                      </div>
-                    </div>
-                ))}
-              </div>
+                    ))}
+                  </div>
+              ) : checklistError ? (
+                  <div
+                      className="flex flex-col items-center justify-center gap-2 rounded-2xl px-5 py-10 text-center"
+                      style={{ backgroundColor: "rgba(186,26,26,0.05)", border: "1px solid rgba(186,26,26,0.12)" }}
+                  >
+                    <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c" }}>체크리스트를 불러오지 못했어요</P>
+                    <P style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
+                      잠시 후 다시 확인해주세요.
+                    </P>
+                  </div>
+              ) : checklist.length === 0 ? (
+                  <div
+                      className="flex flex-col items-center justify-center gap-2 rounded-2xl px-5 py-10 text-center"
+                      style={{ backgroundColor: "rgba(0,106,99,0.04)", border: "1px solid rgba(0,106,99,0.1)" }}
+                  >
+                    <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c" }}>이번주 체크리스트가 없어요</P>
+                    <P style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
+                      필요한 서류가 생기면 여기에 표시됩니다.
+                    </P>
+                  </div>
+              ) : (
+                  <div className="flex flex-col gap-2">
+                    {checklist.map((item) => (
+                        <div
+                            key={item.id}
+                            className="flex items-center gap-4 p-3 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors"
+                            onClick={() => toggleItem(item.id, item.done)}
+                        >
+                          <div
+                              className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                              style={{
+                                backgroundColor: item.done ? "#4fd1c5" : "transparent",
+                                border: item.done ? "2px solid #4fd1c5" : "2px solid #cbd5e1",
+                              }}
+                          >
+                            {item.done && (
+                                <svg width="12" height="9" viewBox="0 0 12 9" fill="none">
+                                  <path d="M1 4L4.5 7.5L11 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 flex items-center justify-between">
+                            <P
+                                style={{
+                                  fontSize: 16,
+                                  fontWeight: 500,
+                                  color: item.done ? "#94a3b8" : "#171d1c",
+                                  textDecoration: item.done ? "line-through" : "none",
+                                }}
+                            >
+                              {item.label}
+                            </P>
+                            <div className="flex items-center gap-2">
+                          <span
+                              className="px-2 py-1 rounded text-xs font-bold"
+                              style={{ backgroundColor: item.deadlineBg, color: item.deadlineColor }}
+                          >
+                            {item.deadline}
+                          </span>
+                              <span
+                                  className="px-2 py-1 rounded text-xs"
+                                  style={{ backgroundColor: item.categoryBg, color: item.categoryColor, fontFamily: "Pretendard, sans-serif" }}
+                              >
+                            {item.category}
+                          </span>
+                            </div>
+                          </div>
+                        </div>
+                    ))}
+                  </div>
+              )}
 
               <div className="mt-8 flex flex-col gap-2">
                 <P style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>{doneCount}/{checklist.length} 완료</P>

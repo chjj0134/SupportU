@@ -23,6 +23,8 @@ export interface ProfileRequest {
 export interface ProfileResponse extends ProfileRequest {
   uid: string;
   createdAt: string;
+  userId?: string;
+  name?: string;
 }
 
 // Policy eligibility check item (정책 적합도 항목)
