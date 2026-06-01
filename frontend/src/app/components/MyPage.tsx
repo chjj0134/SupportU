@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import type { Policy, PolicyDetail } from "../../api/types";
@@ -630,6 +630,28 @@ export function MyPage({ onNavigate }: MyPageProps) {
     interests: ["주거", "일자리"] as ("주거" | "일자리" | "복지")[],
   });
 
+  useEffect(() => {
+    if (!profile) return;
+
+    setProfileData({
+      userId: user?.email ?? profile.uid,
+      age: profile.age ?? 0,
+      gender: profile.gender ?? "",
+      region: profile.city ?? "",
+      district: profile.scity ?? "",
+      education: profile.education ?? "",
+      employmentStatus: profile.employment ?? "",
+      hasDisability: !!profile.disability,
+      annualIncome: profile.incomeInteger ?? 0,
+      assets: profile.asset ?? "",
+      createdAt: profile.createdAt ?? "",
+      interests: profile.preferredCategories.filter(
+          (category): category is "주거" | "일자리" | "복지" =>
+              category === "주거" || category === "일자리" || category === "복지",
+      ),
+    });
+  }, [profile, user?.email]);
+
   const toggleInterest = (category: "주거" | "일자리" | "복지") => {
     if (!isEditingProfile) return;
     setProfileData((prev) => ({
@@ -644,6 +666,13 @@ export function MyPage({ onNavigate }: MyPageProps) {
     // 여기서 저장 로직 처리
     setIsEditingProfile(false);
   };
+
+  const profileName = user?.name ?? "청년";
+  const profileSummary = [
+    profile?.age ? `만 ${profile.age}세` : null,
+    [profile?.city, profile?.scity].filter(Boolean).join(" ") || null,
+    profile?.employment ?? null,
+  ].filter(Boolean).join(" · ") || "프로필 정보를 불러오는 중입니다.";
 
   /* derive locked category from first selection */
   const lockedCategory = selected.length > 0
@@ -704,8 +733,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
               <img src={imgUserAvatar} alt="User" className="w-full h-full object-cover" />
             </div>
             <div>
-              <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>{user?.name ?? "청년"}</P>
-              <P style={{ fontSize: 14, color: "#64748b" }}>만 26세 · 서울 강남구 · 구직 중</P>
+              <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>{profileName}</P>
+              <P style={{ fontSize: 14, color: "#64748b" }}>{profileSummary}</P>
             </div>
             <div className="ml-auto flex gap-6">
               {[
