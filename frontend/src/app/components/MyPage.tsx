@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
-import type { Policy, PolicyDetail } from "../../api/types";
+import type { Policy, PolicyDetail, PolicyDocument } from "../../api/types";
 import type { CalendarEvent } from "../../api/calendar";
 import { fetchPolicyDetail } from "../../api/policies";
 import { queryKeys } from "../../lib/queryClient";
@@ -10,6 +10,7 @@ import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
 import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
+import { useExtractPolicyDocuments } from "../../api/queries/useOrchestratorQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
 import { PolicyDetailSidePanel } from "./common/PolicyDetailSidePanel";
@@ -384,6 +385,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const { data: calendarEvents = [] } = useCalendarEvents();
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
+  const extractPolicyDocumentsMutation = useExtractPolicyDocuments();
+  const [policyDocumentsById, setPolicyDocumentsById] = useState<Record<string, PolicyDocument[]>>({});
+  const [documentErrorByPolicyId, setDocumentErrorByPolicyId] = useState<Record<string, string>>({});
 
   const managedPolicies = calendarEvents.map((event) => {
     const { statusColor, statusBg, progress, journeyStep } = getStatusStyle(event.applyStatus);
@@ -404,7 +408,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
       dday,
       submittedDate: event.appliedAt ?? null,
       journeyStep,
-      documents: [] as { name: string; checked: boolean }[],
+      documents: policyDocumentsById[event.policyId] ?? [],
     };
   });
 
@@ -441,6 +445,29 @@ export function MyPage({ onNavigate }: MyPageProps) {
     createCalendarEventMutation.mutate(id, {
       onSuccess: () => {
         setScheduledIds((prev) => new Set([...prev, id]));
+      },
+    });
+  };
+
+  const handleExtractPolicyDocuments = (policyId: string) => {
+    setDocumentErrorByPolicyId((prev) => {
+      const next = { ...prev };
+      delete next[policyId];
+      return next;
+    });
+
+    extractPolicyDocumentsMutation.mutate(policyId, {
+      onSuccess: (response) => {
+        setPolicyDocumentsById((prev) => ({
+          ...prev,
+          [policyId]: response.documents ?? [],
+        }));
+      },
+      onError: () => {
+        setDocumentErrorByPolicyId((prev) => ({
+          ...prev,
+          [policyId]: "지원 서류 추출에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        }));
       },
     });
   };
@@ -1195,8 +1222,12 @@ export function MyPage({ onNavigate }: MyPageProps) {
                             );
                           }
 
-                          const completedDocs = selectedPolicy.documents.filter(d => d.checked).length;
                           const totalDocs = selectedPolicy.documents.length;
+                          const requiredDocs = selectedPolicy.documents.filter((doc) => doc.required).length;
+                          const isExtractingDocuments =
+                            extractPolicyDocumentsMutation.isPending &&
+                            extractPolicyDocumentsMutation.variables === selectedPolicy.id;
+                          const documentError = documentErrorByPolicyId[selectedPolicy.id];
                           const currentStep = policyJourneySteps[selectedPolicy.id] ?? selectedPolicy.journeyStep;
 
                           const journeySteps = [
@@ -1330,35 +1361,91 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                     </div>
                                     <span
                                         className="px-2 py-1 rounded-full text-xs"
-                                        style={{ backgroundColor: completedDocs === totalDocs ? "rgba(0,106,99,0.1)" : "rgba(186,26,26,0.1)", color: completedDocs === totalDocs ? "#006a63" : "#ba1a1a", fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
+                                        style={{ backgroundColor: totalDocs > 0 ? "rgba(0,106,99,0.1)" : "rgba(186,26,26,0.1)", color: totalDocs > 0 ? "#006a63" : "#ba1a1a", fontFamily: "Pretendard, sans-serif", fontWeight: 700 }}
                                     >
-                              {completedDocs}/{totalDocs}
+                              필수 {requiredDocs} · 전체 {totalDocs}
                             </span>
                                   </div>
-                                  <div className="flex flex-col gap-2">
-                                    {selectedPolicy.documents.map((doc, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-slate-50"
-                                            style={{ border: "1px solid rgba(226,232,240,0.8)" }}
-                                        >
-                                          <div
-                                              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-all"
-                                              style={{
-                                                backgroundColor: doc.checked ? "#006a63" : "white",
-                                                border: `2px solid ${doc.checked ? "#006a63" : "#cbd5e1"}`,
-                                              }}
-                                          >
-                                            {doc.checked && (
-                                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                                  <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                                </svg>
-                                            )}
-                                          </div>
-                                          <P style={{ fontSize: 14, color: doc.checked ? "#171d1c" : "#64748b", textDecoration: doc.checked ? "line-through" : "none" }}>{doc.name}</P>
+                                  {selectedPolicy.documents.length === 0 ? (
+                                      <div className="flex flex-col gap-3">
+                                        <div className="p-3 rounded-lg" style={{ border: "1px solid rgba(226,232,240,0.8)" }}>
+                                          <P style={{ fontSize: 14, color: "#64748b", lineHeight: 1.6 }}>
+                                            아직 추출된 지원 서류가 없습니다.
+                                          </P>
                                         </div>
-                                    ))}
-                                  </div>
+                                        {documentError && (
+                                            <P style={{ fontSize: 13, color: "#ba1a1a", lineHeight: 1.5 }}>{documentError}</P>
+                                        )}
+                                        <button
+                                            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            style={{ backgroundColor: "#006a63", border: "none", color: "white", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: isExtractingDocuments ? "not-allowed" : "pointer" }}
+                                            onClick={() => handleExtractPolicyDocuments(selectedPolicy.id)}
+                                            disabled={isExtractingDocuments}
+                                        >
+                                          {isExtractingDocuments && (
+                                              <svg className="animate-spin" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                                <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+                                                <path d="M14 8C14 4.686 11.314 2 8 2" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                                              </svg>
+                                          )}
+                                          {isExtractingDocuments ? "지원 서류 추출 중..." : "AI로 지원 서류 추출하기"}
+                                        </button>
+                                      </div>
+                                  ) : (
+                                      <div className="flex flex-col gap-2">
+                                        {selectedPolicy.documents.map((doc) => (
+                                            <div
+                                                key={doc.id}
+                                                className="flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-slate-50"
+                                                style={{ border: "1px solid rgba(226,232,240,0.8)" }}
+                                            >
+                                              <span
+                                                  className="px-2 py-1 rounded-full text-xs flex-shrink-0"
+                                                  style={{
+                                                    backgroundColor: doc.required ? "rgba(186,26,26,0.1)" : "rgba(0,106,99,0.1)",
+                                                    color: doc.required ? "#ba1a1a" : "#006a63",
+                                                    fontFamily: "Pretendard, sans-serif",
+                                                    fontWeight: 700,
+                                                  }}
+                                              >
+                                                {doc.required ? "필수" : "선택"}
+                                              </span>
+                                              <div className="flex-1">
+                                                <P style={{ fontSize: 14, color: "#171d1c", fontWeight: 700, lineHeight: 1.5 }}>{doc.name}</P>
+                                                {doc.description && (
+                                                    <P style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>{doc.description}</P>
+                                                )}
+                                                {doc.url && (
+                                                    <button
+                                                        className="mt-2"
+                                                        style={{ background: "none", border: "none", padding: 0, color: "#006a63", cursor: "pointer", fontFamily: "Pretendard, sans-serif", fontSize: 13, fontWeight: 700 }}
+                                                        onClick={() => window.open(doc.url!, "_blank")}
+                                                    >
+                                                      서류 링크 열기
+                                                    </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                        ))}
+                                        <button
+                                            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            style={{ backgroundColor: "white", border: "1.5px solid #006a63", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: isExtractingDocuments ? "not-allowed" : "pointer" }}
+                                            onClick={() => handleExtractPolicyDocuments(selectedPolicy.id)}
+                                            disabled={isExtractingDocuments}
+                                        >
+                                          {isExtractingDocuments && (
+                                              <svg className="animate-spin" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                                <circle cx="8" cy="8" r="6" stroke="rgba(0,106,99,0.25)" strokeWidth="2" />
+                                                <path d="M14 8C14 4.686 11.314 2 8 2" stroke="#006a63" strokeWidth="2" strokeLinecap="round" />
+                                              </svg>
+                                          )}
+                                          {isExtractingDocuments ? "지원 서류 갱신 중..." : "지원 서류 다시 추출하기"}
+                                        </button>
+                                        {documentError && (
+                                            <P style={{ fontSize: 13, color: "#ba1a1a", lineHeight: 1.5 }}>{documentError}</P>
+                                        )}
+                                      </div>
+                                  )}
                                 </div>
 
                                 {/* Action Button */}

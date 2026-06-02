@@ -57,6 +57,20 @@ export interface PolicyDetail {
   detailUrl?: string | null;
 }
 
+export interface PolicyDocument {
+  id: number;
+  name: string;
+  required: boolean;
+  description: string | null;
+  url: string | null;
+}
+
+export interface ExtractPolicyDocumentsResponse {
+  policyId: string;
+  documentCount: number;
+  documents: PolicyDocument[];
+}
+
 // Checklist
 export interface ChecklistItem {
   id: number;
