@@ -111,6 +111,31 @@ ACTIVE_KEYWORDS = [
     "계속 운영",
 ]
 
+OPEN_ENDED_ACTIVE_KEYWORDS = [
+    "상시",
+    "상시모집",
+    "상시 모집",
+    "수시",
+    "수시모집",
+    "수시 모집",
+    "연중",
+    "연중모집",
+    "연중 모집",
+    "예산 소진",
+    "예산소진",
+    "예산 소진 시",
+    "예산 소진시",
+    "예산 소진 시까지",
+    "예산소진시까지",
+    "마감 시까지",
+    "마감시까지",
+    "소진 시까지",
+    "소진시까지",
+    "운영 중",
+    "운영중",
+    "계속 운영",
+]
+
 CLOSED_KEYWORDS = [
     "마감",
     "종료",
@@ -179,13 +204,28 @@ def extract_year_from_title(title: str):
     return int(match.group(1))
 
 
+def extract_year_from_policy_id(policy_id: str):
+    if not isinstance(policy_id, str):
+        return None
+
+    match = re.search(r"(20\d{2})", policy_id)
+
+    if not match:
+        return None
+
+    return int(match.group(1))
+
+
 def parse_date_ranges(text: str):
     ranges = []
 
+    if not isinstance(text, str):
+        return ranges
+
     full_date_pattern = (
-        r"(\d{4})[.\-/년]\s*(\d{1,2})[.\-/월]\s*(\d{1,2})"
-        r".{0,50}?[~\-]"
-        r".{0,50}?(\d{4})[.\-/년]\s*(\d{1,2})[.\-/월]\s*(\d{1,2})"
+        r"(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})"
+        r".{0,80}?[~\-]"
+        r".{0,80}?(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})"
     )
 
     for match in re.finditer(full_date_pattern, text):
@@ -197,9 +237,9 @@ def parse_date_ranges(text: str):
             pass
 
     same_year_date_pattern = (
-        r"(\d{4})[.\-/년]\s*(\d{1,2})[.\-/월]\s*(\d{1,2})"
-        r".{0,50}?[~\-]"
-        r".{0,50}?(\d{1,2})[.\-/월]\s*(\d{1,2})"
+        r"(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})"
+        r".{0,80}?[~\-]"
+        r".{0,80}?(\d{1,2})\s*[.\-/월]\s*(\d{1,2})"
     )
 
     for match in re.finditer(same_year_date_pattern, text):
@@ -212,9 +252,9 @@ def parse_date_ranges(text: str):
             pass
 
     month_pattern = (
-        r"(\d{4})[.\-/년]\s*(\d{1,2})[.\-/월]?"
+        r"(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]?"
         r"\s*[~\-]\s*"
-        r"(\d{1,2})[.\-/월]?"
+        r"(\d{1,2})\s*[.\-/월]?"
     )
 
     for match in re.finditer(month_pattern, text):
@@ -230,11 +270,52 @@ def parse_date_ranges(text: str):
         except Exception:
             pass
 
-    return ranges
+    unique_ranges = []
+    seen = set()
+
+    for start, end in ranges:
+        key = (start.date().isoformat(), end.date().isoformat())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_ranges.append((start, end))
+
+    return unique_ranges
+
+
+def parse_single_dates(text: str):
+    dates = []
+
+    if not isinstance(text, str):
+        return dates
+
+    pattern = r"(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})"
+
+    for match in re.finditer(pattern, text):
+        try:
+            dates.append(normalize_date(match.group(1), match.group(2), match.group(3)))
+        except Exception:
+            pass
+
+    unique_dates = []
+    seen = set()
+
+    for date in dates:
+        key = date.date().isoformat()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_dates.append(date)
+
+    return unique_dates
 
 
 def has_active_keyword(text: str):
     return any(keyword in text for keyword in ACTIVE_KEYWORDS)
+
+
+def has_open_ended_active_keyword(text: str):
+    return any(keyword in text for keyword in OPEN_ENDED_ACTIVE_KEYWORDS)
 
 
 def has_closed_keyword(text: str):
@@ -242,7 +323,10 @@ def has_closed_keyword(text: str):
 
 
 def get_period_related_text(raw_text: str):
-    lines = raw_text.splitlines()
+    if not isinstance(raw_text, str):
+        return ""
+
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
 
     keywords = [
         "신청기간",
@@ -260,12 +344,49 @@ def get_period_related_text(raw_text: str):
         "지원 기간",
     ]
 
+    stop_keywords = [
+        "정책 유형",
+        "주관 기관",
+        "정책 소개",
+        "지원 내용",
+        "지원규모",
+        "관련 사이트",
+        "신청자격",
+        "신청방법",
+        "기타",
+    ]
+
     chunks = []
 
     for i, line in enumerate(lines):
         if any(keyword in line for keyword in keywords):
-            chunk = "\n".join(lines[i:i + 6])
-            chunks.append(chunk)
+            chunk_lines = []
+
+            for next_line in lines[i:i + 12]:
+                if chunk_lines and next_line in stop_keywords:
+                    break
+                chunk_lines.append(next_line)
+
+            chunks.append("\n".join(chunk_lines))
+
+    if chunks:
+        return "\n".join(chunks)
+
+    compact_text = " ".join(lines)
+
+    for keyword in keywords:
+        if keyword not in compact_text:
+            continue
+
+        start = compact_text.find(keyword)
+        end = len(compact_text)
+
+        for stop_keyword in stop_keywords:
+            stop_pos = compact_text.find(stop_keyword, start + len(keyword))
+            if stop_pos != -1:
+                end = min(end, stop_pos)
+
+        chunks.append(compact_text[start:end])
 
     if chunks:
         return "\n".join(chunks)
@@ -284,47 +405,114 @@ def remove_birth_lines(text: str):
     return "\n".join(filtered)
 
 
-def classify_policy(title: str, list_text: str, raw_text: str):
+def is_old_year_without_clear_current_signal(title_year, policy_id_year):
+    years = [year for year in [title_year, policy_id_year] if year is not None]
+
+    if not years:
+        return False
+
+    return max(years) < CURRENT_YEAR
+
+
+def classify_policy(title: str, list_text: str, raw_text: str, policy_id: str = ""):
     base_date = today()
 
     combined_text = f"{title}\n{list_text}\n{raw_text}"
     title_year = extract_year_from_title(title)
+    policy_id_year = extract_year_from_policy_id(policy_id)
 
     list_ranges = parse_date_ranges(list_text)
 
     if list_ranges:
+        active_ranges = []
+        future_ranges = []
+
         for start, end in list_ranges:
             if start <= base_date <= end:
-                return "active", f"list_date_range_active:{start.date()}~{end.date()}"
+                active_ranges.append((start, end))
+            elif start > base_date:
+                future_ranges.append((start, end))
 
-        return "closed", "list_date_range_expired"
+        if active_ranges:
+            start, end = active_ranges[0]
+            return "active", f"list_date_range_active:{start.date()}~{end.date()}"
+
+        latest_end = max(end for _, end in list_ranges)
+
+        if latest_end < base_date:
+            return "closed", f"list_date_range_expired:{latest_end.date()}"
+
+        if future_ranges:
+            start, end = future_ranges[0]
+            return "need_check", f"future_list_date_range:{start.date()}~{end.date()}"
 
     period_text = get_period_related_text(raw_text)
     period_text = remove_birth_lines(period_text)
 
-    date_ranges = parse_date_ranges(period_text)
+    detail_ranges = parse_date_ranges(period_text)
 
-    if date_ranges:
-        for start, end in date_ranges:
+    if not detail_ranges:
+        detail_ranges = parse_date_ranges(remove_birth_lines(raw_text))
+
+    if detail_ranges:
+        active_ranges = []
+        future_ranges = []
+
+        for start, end in detail_ranges:
             if start <= base_date <= end:
-                return "active", f"detail_date_range_active:{start.date()}~{end.date()}"
+                active_ranges.append((start, end))
+            elif start > base_date:
+                future_ranges.append((start, end))
 
-        return "closed", "detail_date_range_expired"
+        if active_ranges:
+            start, end = active_ranges[0]
+            return "active", f"detail_date_range_active:{start.date()}~{end.date()}"
 
-    if has_active_keyword(period_text):
+        latest_end = max(end for _, end in detail_ranges)
+
+        if latest_end < base_date:
+            return "closed", f"detail_date_range_expired:{latest_end.date()}"
+
+        if future_ranges:
+            start, end = future_ranges[0]
+            return "need_check", f"future_detail_date_range:{start.date()}~{end.date()}"
+
+    if has_closed_keyword(period_text):
+        return "closed", "period_closed_keyword"
+
+    single_dates = parse_single_dates(period_text)
+
+    if not single_dates:
+        single_dates = parse_single_dates(remove_birth_lines(raw_text))
+
+    if single_dates and has_open_ended_active_keyword(period_text):
+        latest_date = max(single_dates)
+
+        if latest_date.year >= CURRENT_YEAR - 1:
+            return "active", f"open_ended_active:{latest_date.date()}"
+
+        return "need_check", f"old_open_ended_date_need_check:{latest_date.date()}"
+
+    if is_old_year_without_clear_current_signal(title_year, policy_id_year):
+        if has_open_ended_active_keyword(period_text):
+            return "need_check", f"past_year_but_period_active_keyword:{max(y for y in [title_year, policy_id_year] if y is not None)}"
+
+        return "closed", f"past_year:{max(y for y in [title_year, policy_id_year] if y is not None)}"
+
+    if has_open_ended_active_keyword(period_text):
         return "active", "period_active_keyword"
-
-    if title_year is not None and title_year < CURRENT_YEAR:
-        return "closed", f"past_title_year:{title_year}"
 
     if has_closed_keyword(combined_text):
         return "closed", "closed_keyword"
 
-    if title_year == CURRENT_YEAR:
-        return "need_check", f"current_title_year_no_clear_period:{title_year}"
+    if title_year == CURRENT_YEAR or policy_id_year == CURRENT_YEAR:
+        return "need_check", f"current_year_no_clear_period:{title_year or policy_id_year}"
 
-    if title_year is None:
+    if title_year is None and policy_id_year is None:
         return "need_check", "no_year_no_clear_period"
+
+    if (title_year and title_year > CURRENT_YEAR) or (policy_id_year and policy_id_year > CURRENT_YEAR):
+        return "need_check", f"future_year:{title_year or policy_id_year}"
 
     return "need_check", "no_clear_period"
 
@@ -433,6 +621,7 @@ def fetch_policy_detail(item: dict):
         title=item["title"],
         list_text=item.get("list_text", ""),
         raw_text=raw_text,
+        policy_id=item["policy_id"],
     )
 
     return {
