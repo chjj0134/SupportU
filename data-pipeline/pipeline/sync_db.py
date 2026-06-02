@@ -1,21 +1,42 @@
-# pipeline/sync_db.py
-# Supabase 동기화: 신규/수정 정책 upsert + 사라진 정책 cascade 삭제
-
 import os
 import math
+from pathlib import Path
+
 import pandas as pd
 from supabase import create_client, Client
 
 from config import MASTER_POLICY_PATH
 
 
+def load_env_file():
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+
+    if not env_path.exists():
+        return
+
+    with env_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            if "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_env_file()
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-# 삭제 순서: FK 의존성 순서대로 (자식 테이블 먼저)
-# policies ← policy_documents ← user_document_checklist
-# policies ← user_calendar_events ← user_document_checklist (cid)
-# policies ← document_drafts, effect, user_uploaded_files, bookmarks, eligibility_results
 CASCADE_TABLES_BY_POLICY_ID = [
     "document_drafts",
     "effect",
@@ -29,10 +50,11 @@ def get_supabase_client() -> Client:
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise ValueError(
             "SUPABASE_URL, SUPABASE_KEY 환경변수가 설정되지 않았습니다.\n"
-            "실행 전 환경변수를 설정해 주세요:\n"
-            "  set SUPABASE_URL=https://xxx.supabase.co\n"
-            "  set SUPABASE_KEY=your-service-role-key"
+            "data-pipeline/.env 파일을 생성해 주세요:\n"
+            "  SUPABASE_URL=https://xxx.supabase.co\n"
+            "  SUPABASE_KEY=your-service-role-key"
         )
+
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
@@ -43,36 +65,40 @@ def sanitize(v, key=None):
     """NaN/inf → None, bool → 'true'/'false' string, 날짜 컬럼 비정상값 → None"""
     if v is None:
         return None
+
     if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
         return None
+
     if isinstance(v, bool):
         return "true" if v else "false"
-    # 날짜 컬럼은 YYYY-MM-DD 형식만 허용
+
     if key in DATE_COLUMNS:
         s = str(v).strip()
+
         import re
+
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", s):
             return None
+
         return s
+
     return v
 
 
 def upsert_policies(supabase: Client, df: pd.DataFrame) -> int:
     """
-    신규(new) / 수정(updated) 정책을 Supabase policies 테이블에 upsert.
+    master 기준 현재 살아 있는 정책을 Supabase policies 테이블에 upsert.
     DB 스키마 컬럼명에 맞게 매핑.
     """
-    target_df = df[df["record_status"].isin(["new", "updated"])].copy()
+    target_df = df[df["record_status"] != "not_seen_latest_run"].copy()
 
     if target_df.empty:
         print("upsert 대상 없음")
         return 0
 
-    # schema_category → category 로 매핑
     if "schema_category" in target_df.columns:
         target_df["category"] = target_df["schema_category"]
 
-    # DB policies 테이블의 실제 컬럼 목록
     POLICY_COLUMNS = [
         "policy_id", "policy_title", "detail_url", "source_site", "source_name",
         "data_scope",
@@ -85,19 +111,27 @@ def upsert_policies(supabase: Client, df: pd.DataFrame) -> int:
         "crawl_status", "crawl_reason",
         "ai_status", "ai_reason", "ai_evidence",
         "error",
-        "category",  # schema_category 매핑값
+        "category",
     ]
 
     upload_cols = [c for c in POLICY_COLUMNS if c in target_df.columns]
     upload_df = target_df[upload_cols].copy()
 
-    # title NOT NULL 제약 → policy_title로 fallback
+    before = len(upload_df)
+
+    if "policy_id" in upload_df.columns:
+        upload_df["policy_id"] = upload_df["policy_id"].astype("string").str.strip()
+        upload_df = upload_df[upload_df["policy_id"].notna() & (upload_df["policy_id"] != "")]
+
+    if len(upload_df) < before:
+        print(f"  policy_id null/blank으로 제외된 행: {before - len(upload_df)}개")
+
     if "title" in upload_df.columns and "policy_title" in target_df.columns:
         upload_df["title"] = upload_df["title"].fillna(target_df["policy_title"])
 
-    # title도 없으면 해당 행 제외 (업로드 불가)
     before = len(upload_df)
     upload_df = upload_df[upload_df["title"].notna()]
+
     if len(upload_df) < before:
         print(f"  title null로 제외된 행: {before - len(upload_df)}개")
 
@@ -135,10 +169,15 @@ def cascade_delete_policies(supabase: Client, policy_ids: list[str]) -> int:
         print("삭제 대상 정책 없음")
         return 0
 
+    policy_ids = [str(pid).strip() for pid in policy_ids if str(pid).strip()]
+
+    if not policy_ids:
+        print("삭제 대상 정책 없음")
+        return 0
+
     print(f"cascade 삭제 시작: {len(policy_ids)}개 정책")
 
     for pid in policy_ids:
-        # 1. policy_documents의 doc_id 조회
         doc_resp = (
             supabase.table("policy_documents")
             .select("doc_id")
@@ -147,14 +186,11 @@ def cascade_delete_policies(supabase: Client, policy_ids: list[str]) -> int:
         )
         doc_ids = [r["doc_id"] for r in (doc_resp.data or [])]
 
-        # 2. user_document_checklist 삭제 (doc_id 기준)
         for doc_id in doc_ids:
             supabase.table("user_document_checklist").delete().eq("doc_id", doc_id).execute()
 
-        # 3. policy_documents 삭제
         supabase.table("policy_documents").delete().eq("policy_id", pid).execute()
 
-        # 4. user_calendar_events의 cid 조회 → user_document_checklist 혹시 남은 것 삭제
         cal_resp = (
             supabase.table("user_calendar_events")
             .select("cid")
@@ -162,17 +198,15 @@ def cascade_delete_policies(supabase: Client, policy_ids: list[str]) -> int:
             .execute()
         )
         cids = [r["cid"] for r in (cal_resp.data or [])]
+
         for cid in cids:
             supabase.table("user_document_checklist").delete().eq("cid", cid).execute()
 
-        # 5. user_calendar_events 삭제
         supabase.table("user_calendar_events").delete().eq("policy_id", pid).execute()
 
-        # 6. 나머지 policy_id 참조 테이블 삭제
         for table in CASCADE_TABLES_BY_POLICY_ID:
             supabase.table(table).delete().eq("policy_id", pid).execute()
 
-        # 7. policies 삭제
         supabase.table("policies").delete().eq("policy_id", pid).execute()
 
     print(f"cascade 삭제 완료: {len(policy_ids)}개 정책")
@@ -184,59 +218,48 @@ def get_expired_policy_ids(supabase: Client) -> list[str]:
     만료 정책 ID 목록 반환.
 
     삭제 기준:
-    - pend < today                          → 삭제
-    - pend is null AND oend is null         → 삭제
-    - pend is null AND oend < today         → 삭제
-    - pend is null AND oend >= today        → 유지
+    - pend < today
+    - pend is null AND oend < today
     """
     from datetime import date
-    today = date.today().isoformat()
 
-    # 1. pend가 오늘 이전인 정책
+    today_value = date.today().isoformat()
+
     resp_pend = (
         supabase.table("policies")
         .select("policy_id")
-        .lt("pend", today)
+        .lt("pend", today_value)
         .not_.is_("pend", "null")
         .execute()
     )
     pend_ids = [r["policy_id"] for r in (resp_pend.data or [])]
 
-    # 2. pend is null AND oend is null → 삭제
-    resp_both_null = (
-        supabase.table("policies")
-        .select("policy_id")
-        .is_("pend", "null")
-        .is_("oend", "null")
-        .execute()
-    )
-    both_null_ids = [r["policy_id"] for r in (resp_both_null.data or [])]
-
-    # 3. pend is null AND oend < today → 삭제
     resp_oend = (
         supabase.table("policies")
         .select("policy_id")
         .is_("pend", "null")
-        .lt("oend", today)
+        .lt("oend", today_value)
         .not_.is_("oend", "null")
         .execute()
     )
     oend_expired_ids = [r["policy_id"] for r in (resp_oend.data or [])]
 
-    ids = list(set(pend_ids + both_null_ids + oend_expired_ids))
-    print(f"만료 정책: {len(ids)}개 (기준일: {today})")
+    ids = list(set(pend_ids + oend_expired_ids))
+
+    print(f"만료 정책: {len(ids)}개 (기준일: {today_value})")
     print(f"  pend 만료: {len(pend_ids)}개")
-    print(f"  pend/oend 모두 null: {len(both_null_ids)}개")
     print(f"  pend null + oend 만료: {len(oend_expired_ids)}개")
+    print("  pend/oend 모두 null: 삭제하지 않음")
+
     return ids
 
 
 def sync_to_supabase(master_csv_path=MASTER_POLICY_PATH):
     """
     master CSV를 기준으로 Supabase를 동기화:
-    1. new / updated → upsert
+    1. not_seen_latest_run 제외 전체 upsert
     2. not_seen_latest_run → cascade 삭제
-    3. pend가 오늘보다 이전인 정책 → cascade 삭제
+    3. 명확히 만료된 정책 → cascade 삭제
     """
     print("\n" + "=" * 60)
     print("Supabase 동기화 시작")
@@ -246,14 +269,11 @@ def sync_to_supabase(master_csv_path=MASTER_POLICY_PATH):
 
     df = pd.read_csv(master_csv_path, dtype={"policy_id": str})
 
-    # 1. upsert
     upsert_count = upsert_policies(supabase, df)
 
-    # 2. not_seen_latest_run cascade 삭제
     gone_ids = df[df["record_status"] == "not_seen_latest_run"]["policy_id"].dropna().tolist()
     delete_count = cascade_delete_policies(supabase, gone_ids)
 
-    # 3. pend 기준 만료 정책 cascade 삭제
     expired_ids = get_expired_policy_ids(supabase)
     expired_delete_count = cascade_delete_policies(supabase, expired_ids)
 

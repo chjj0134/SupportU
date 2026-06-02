@@ -136,6 +136,7 @@ def main():
     print("\n" + "=" * 60)
     print("Supabase 동기화 시작")
     print("=" * 60)
+
     try:
         sync_to_supabase()
     except ValueError as e:
