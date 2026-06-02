@@ -670,7 +670,37 @@ export function MyPage({ onNavigate }: MyPageProps) {
                   </P>
                 </div>
 
-                {groupedByCategory.map(({ category, policies }) => (
+                {bookmarkedPolicies.length === 0 ? (
+                    <div
+                        className="flex flex-col items-center justify-center gap-3 rounded-2xl px-6 py-16 text-center"
+                        style={{ backgroundColor: "white", border: "1px solid rgba(226,232,240,0.8)", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
+                    >
+                      <div
+                          className="w-14 h-14 rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: "rgba(0,106,99,0.08)" }}
+                      >
+                        <svg width="24" height="26" viewBox="0 0 18 20" fill="none">
+                          <path
+                              d="M2 2H16C16.552 2 17 2.448 17 3V19L9 15L1 19V3C1 2.448 1.448 2 2 2Z"
+                              stroke="#006a63"
+                              strokeWidth="1.5"
+                              strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                      <P style={{ fontSize: 18, fontWeight: 700, color: "#171d1c" }}>아직 북마크한 정책이 없어요</P>
+                      <P style={{ fontSize: 14, color: "#64748b", lineHeight: 1.6 }}>
+                        정책 목록에서 관심 있는 공고를 북마크하면 이곳에서 비교하고 지원 일정을 관리할 수 있습니다.
+                      </P>
+                      <button
+                          className="mt-2 px-5 py-3 rounded-xl transition-all hover:opacity-90"
+                          style={{ backgroundColor: "#006a63", color: "white", border: "none", cursor: "pointer", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700 }}
+                          onClick={() => onNavigate("policies")}
+                      >
+                        정책 보러가기
+                      </button>
+                    </div>
+                ) : groupedByCategory.map(({ category, policies }) => (
                     <div key={category}>
                       {/* Category Header */}
                       <div className="flex items-center gap-2 mb-4">
@@ -781,8 +811,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                 >
                                   <P style={{ fontSize: 17, fontWeight: 600, color: "#171d1c", lineHeight: 1.4, marginBottom: 6 }}>{p.title}</P>
                                   <P style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{p.org}</P>
-                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.amount ?? p.support}</P>
-                                  <P style={{ fontSize: 13, color: "#3c4947" }}>지원규모: {p.support}</P>
+                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12, lineHeight: 1.5 }}>{p.support}</P>
+                                  <P style={{ fontSize: 13, color: "#3c4947" }}>지역: {p.region}</P>
 
                                   <div className="flex items-center justify-between mt-4 pt-3 border-t" style={{ borderColor: "#e9efed" }}>
                                     <P style={{ fontSize: 13, color: "#006a63", fontWeight: 500 }}>상세보기 →</P>
