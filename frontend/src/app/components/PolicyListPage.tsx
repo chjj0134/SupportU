@@ -299,14 +299,6 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
                         >
                           {policy.category}
                         </span>
-                        {policy.matchScore != null && (
-                            <span
-                                className="px-2 py-0.5 rounded-full text-xs font-bold"
-                                style={{ backgroundColor: "rgba(79,209,197,0.15)", color: "#006a63", fontFamily: "Pretendard, sans-serif" }}
-                            >
-                              AI {policy.matchScore}%
-                            </span>
-                        )}
                       </div>
                       <button
                           onClick={(e) => toggleBookmark(policy.policyId, e)}

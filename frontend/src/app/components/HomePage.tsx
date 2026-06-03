@@ -292,19 +292,9 @@ export function HomePage({ onNavigate }: HomePageProps) {
                           >
                             {policy.category}
                           </span>
-                          <div className="flex items-center gap-1.5">
-                            {policy.matchScore != null && (
-                                <span
-                                    className="px-2 py-0.5 rounded-full text-xs font-bold"
-                                    style={{ backgroundColor: "rgba(79,209,197,0.15)", color: "#006a63", fontFamily: "Pretendard, sans-serif" }}
-                                >
-                                  AI {policy.matchScore}%
-                                </span>
-                            )}
-                            {policy.region && (
-                                <P style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 700, letterSpacing: "0.5px" }}>{policy.region}</P>
-                            )}
-                          </div>
+                          {policy.region && (
+                            <P style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 700, letterSpacing: "0.5px" }}>{policy.region}</P>
+                          )}
                         </div>
                         <P style={{ fontSize: 18, color: "#171d1c", fontWeight: 500, marginTop: 8, lineHeight: 1.5 }}>{policy.title}</P>
                         <P style={{ fontSize: 14, color: "#64748b", marginTop: 6, lineHeight: 1.6 }}>{policy.description}</P>

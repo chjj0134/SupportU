@@ -53,7 +53,6 @@ export interface Policy {
   deadlineText: string;
   bookmarked: boolean;
   region?: string;         // 추천 정책에서 추가 제공
-  matchScore?: number;     // 추천 정책에서만 제공
 }
 
 export interface PolicyDetail {
