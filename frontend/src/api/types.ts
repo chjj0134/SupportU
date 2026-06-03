@@ -21,7 +21,8 @@ export interface ProfileRequest {
 }
 
 export interface ProfileResponse {
-  uid: string;
+  userId: string;
+  name: string | null;
   age: number | null;
   gender: string | null;
   city: string | null;
@@ -32,7 +33,7 @@ export interface ProfileResponse {
   incomeInteger: number | null;
   asset: string | null;
   preferredCategories: string[] | null;
-  createdAt: string;
+  createdAt?: string;
 }
 
 // Policy eligibility check item (정책 적합도 항목)
@@ -41,31 +42,39 @@ export interface EligibilityItem {
   value: string;
 }
 
-// Policy
+// Policy (전체 목록 / 북마크 목록 공통)
 export interface Policy {
-  id: string;
+  policyId: string;
   title: string;
-  org: string;
-  category: string;
-  categoryKr: string;
-  deadline: string;
-  support: string;
-  desc: string;
-  region: string;
+  category: string;        // 한글 카테고리 (주거/일자리/복지)
+  organization: string;
+  description: string;
+  supportScale: string;
+  deadlineText: string;
   bookmarked: boolean;
-  detailUrl?: string | null;
+  region?: string;         // 추천 정책에서 추가 제공
+  matchScore?: number;     // 추천 정책에서만 제공
 }
 
 export interface PolicyDetail {
-  fullDesc: string;
+  policyId: string;
+  title: string;
+  category: string;
+  deadlineText: string;
+  organization: string;
+  supportScale: string;
+  description: string;
   benefits: string[];
-  amount: string;
-  scope: string;
-  duration: string;
-  target: string;
-  method: string;
-  eligibility?: EligibilityItem[];
   detailUrl?: string | null;
+  applicationStartDate?: string | null;
+  applicationEndDate?: string | null;
+  eligibility: EligibilityItem[];
+}
+
+// 북마크 추가/삭제 응답
+export interface BookmarkResponse {
+  policyId: string;
+  bookmarked: boolean;
 }
 
 export interface PolicyDocument {

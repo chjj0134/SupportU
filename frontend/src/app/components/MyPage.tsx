@@ -18,13 +18,7 @@ import { getCategoryStyle } from "../../constants/categories";
 
 /* ─────────────────────────── Data ─────────────────────────── */
 
-type MyPagePolicy = Policy & {
-  amount?: string;
-  scope?: string;
-  duration?: string;
-  target?: string;
-  method?: string;
-};
+type MyPagePolicy = Policy;
 
 type PolicyCategoryLabel = "주거" | "일자리" | "복지";
 type ProfileInterest = "주거" | "일자리" | "복지";
@@ -60,22 +54,9 @@ const emptyProfileData: ProfileFormState = {
 };
 
 function getPolicyCategoryLabel(policy: MyPagePolicy): PolicyCategoryLabel {
-  if (policy.categoryKr === "주거" || policy.categoryKr === "일자리" || policy.categoryKr === "복지") {
-    return policy.categoryKr;
-  }
-
   if (policy.category === "주거" || policy.category === "일자리" || policy.category === "복지") {
     return policy.category;
   }
-
-  if (policy.category === "Housing") {
-    return "주거";
-  }
-
-  if (policy.category === "Jobs") {
-    return "일자리";
-  }
-
   return "복지";
 }
 
@@ -88,12 +69,9 @@ const categoryColor: Record<string, { bg: string; text: string; border: string }
 };
 
 const compareFields: { key: keyof MyPagePolicy; label: string }[] = [
-  { key: "org", label: "주관 기관" },
-  { key: "amount", label: "지원 금액" },
-  { key: "scope", label: "지원 범위" },
-  { key: "duration", label: "지원 기간" },
-  { key: "target", label: "지원 대상" },
-  { key: "method", label: "신청 방법" },
+  { key: "organization", label: "주관 기관" },
+  { key: "supportScale", label: "지원 규모" },
+  { key: "description", label: "지원 개요" },
 ];
 
 const funnelData = [
@@ -153,11 +131,14 @@ function buildCalendarDays(
     const day = index + 1;
     const dayEvents = events
         .filter((event) => {
-          const date = new Date(event.eventStartAt);
+          const date = new Date(event.startDate);
           return date.getFullYear() === year && date.getMonth() + 1 === month && date.getDate() === day;
         })
         .map((event) => {
-          const colors = toCalendarColor(event.category);
+          // type이 "deadline"이면 강조(빨강), 그 외는 기본(녹색)
+          const colors = event.type === "deadline"
+              ? { color: "#ffdad6", textColor: "#93000a" }
+              : { color: "rgba(79,209,197,0.2)", textColor: "#006a63" };
 
           return {
             text: event.title,
@@ -191,8 +172,8 @@ function CompareModal({
 
   const detailResults = useQueries({
     queries: policies.map((p) => ({
-      queryKey: queryKeys.policies.detail(p.id),
-      queryFn: () => fetchPolicyDetail(p.id),
+      queryKey: queryKeys.policies.detail(p.policyId),
+      queryFn: () => fetchPolicyDetail(p.policyId),
     })),
   });
   const details = detailResults.map((r) => r.data ?? null);
@@ -257,7 +238,7 @@ function CompareModal({
                 const categoryLabel = getPolicyCategoryLabel(p);
 
                 return (
-                    <div key={p.id} className="bg-white px-5 py-4">
+                    <div key={p.policyId} className="bg-white px-5 py-4">
                 <span
                     className="inline-block px-2 py-0.5 rounded-full text-xs mb-2"
                     style={{ backgroundColor: categoryColor[categoryLabel].bg, color: categoryColor[categoryLabel].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
@@ -265,7 +246,7 @@ function CompareModal({
                   {categoryLabel}
                 </span>
                       <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c", lineHeight: 1.4 }}>{p.title}</P>
-                      <P style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{p.org}</P>
+                      <P style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{p.organization}</P>
                     </div>
                 );
               })}
@@ -280,21 +261,21 @@ function CompareModal({
                 <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>마감일</P>
               </div>
               {policies.map((p) => (
-                  <div key={p.id} className="bg-white px-5 py-4">
+                  <div key={p.policyId} className="bg-white px-5 py-4">
                     <P
                         style={{
                           fontSize: 14,
                           fontWeight: 700,
-                          color: p.deadline === "상시" ? "#006a63" : parseInt(p.deadline.replace("D-", "")) <= 7 ? "#ba1a1a" : "#f97316",
+                          color: p.deadlineText === "상시" ? "#006a63" : parseInt(p.deadlineText.replace("D-", "")) <= 7 ? "#ba1a1a" : "#f97316",
                         }}
                     >
-                      {p.deadline}
+                      {p.deadlineText}
                     </P>
                   </div>
               ))}
             </div>
 
-            {/* Data Rows */}
+            {/* Data Rows — Policy 자체 필드 (organization, supportScale, description) */}
             {compareFields.map((field, i) => (
                 <div
                     key={field.key}
@@ -307,14 +288,11 @@ function CompareModal({
                   <div className="px-5 py-4 flex items-start" style={{ backgroundColor: i % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
                     <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>{field.label}</P>
                   </div>
-                  {policies.map((p, idx) => {
-                    const value = field.key === "org"
-                      ? p.org
-                      : details[idx]?.[field.key as keyof PolicyDetail] ?? "-";
-
+                  {policies.map((p) => {
+                    const value = p[field.key as keyof MyPagePolicy] ?? "-";
                     return (
-                        <div key={p.id} className="bg-white px-5 py-4">
-                          {field.key === "amount" ? (
+                        <div key={p.policyId} className="bg-white px-5 py-4">
+                          {field.key === "supportScale" ? (
                               <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63" }}>{String(value)}</P>
                           ) : (
                               <P style={{ fontSize: 14, color: "#171d1c", lineHeight: 1.5 }}>{String(value)}</P>
@@ -335,8 +313,8 @@ function CompareModal({
               <P style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>일정 추가</P>
             </div>
             {policies.map((p) => (
-                <div key={p.id} className="bg-white px-5 py-5">
-                  {scheduled.has(p.id) ? (
+                <div key={p.policyId} className="bg-white px-5 py-5">
+                  {scheduled.has(p.policyId) ? (
                       <div
                           className="h-11 rounded-xl flex items-center justify-center gap-2"
                           style={{ backgroundColor: "#f0fdf4", border: "1px solid #16a34a" }}
@@ -351,7 +329,7 @@ function CompareModal({
                       <button
                           className="w-full h-11 rounded-xl flex items-center justify-center gap-2 transition-all hover:opacity-90"
                           style={{ backgroundColor: "#006a63", border: "none", cursor: "pointer" }}
-                          onClick={() => handleSchedule(p.id)}
+                          onClick={() => handleSchedule(p.policyId)}
                       >
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                           <rect x="1" y="2" width="14" height="13" rx="2" stroke="white" strokeWidth="1.3" />
@@ -379,8 +357,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const { data: user } = useAuthUser();
   const { data: profile } = useProfile();
   const saveProfileMutation = useSaveProfile();
-  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
-  const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
+  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.userId);
+  const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.userId);
   const { data: bookmarkedPolicies = [] } = useBookmarkedPolicies();
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const { data: calendarEvents = [] } = useCalendarEvents();
@@ -390,23 +368,24 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [documentErrorByPolicyId, setDocumentErrorByPolicyId] = useState<Record<string, string>>({});
 
   const managedPolicies = calendarEvents.map((event) => {
-    const { statusColor, statusBg, progress, journeyStep } = getStatusStyle(event.applyStatus);
-    const deadline = event.eventEndAt ? event.eventEndAt.split("T")[0] : "상시";
-    const dday = event.eventEndAt
-      ? Math.max(0, Math.ceil((new Date(event.eventEndAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    // 명세 기준 새 API는 applyStatus 미제공 → 기본값 처리
+    const { statusColor, statusBg, progress, journeyStep } = getStatusStyle("pending");
+    const deadline = event.endDate ?? "상시";
+    const dday = event.endDate
+      ? Math.max(0, Math.ceil((new Date(event.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : 0;
 
     return {
       id: event.policyId,
       title: event.title,
-      org: event.org,
-      status: event.applyStatus,
+      org: "-",
+      status: "일정 등록",
       statusColor,
       statusBg,
       progress,
       deadline,
       dday,
-      submittedDate: event.appliedAt ?? null,
+      submittedDate: null,
       journeyStep,
       documents: policyDocumentsById[event.policyId] ?? [],
     };
@@ -427,7 +406,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
 
   const firstEventDate = calendarEvents.length > 0
-      ? new Date(calendarEvents[0].eventStartAt)
+      ? new Date(calendarEvents[0].startDate)
       : new Date();
   const calendarYear = firstEventDate.getFullYear();
   const calendarMonth = firstEventDate.getMonth() + 1;
@@ -534,7 +513,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
     );
   };
 
-  const profileName = user?.name ?? "청년";
+  const profileName = profile?.name ?? user?.name ?? "청년";
   const profileSummary = [
     profile?.age ? `만 ${profile.age}세` : null,
     [profile?.city, profile?.scity].filter(Boolean).join(" ") || null,
@@ -543,14 +522,14 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   /* derive locked category from first selection */
   const lockedCategory = selected.length > 0
-      ? bookmarkedPolicies.find((p) => p.id === selected[0])
-          ? getPolicyCategoryLabel(bookmarkedPolicies.find((p) => p.id === selected[0])!)
+      ? bookmarkedPolicies.find((p) => p.policyId === selected[0])
+          ? getPolicyCategoryLabel(bookmarkedPolicies.find((p) => p.policyId === selected[0])!)
           : null
       : null;
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const policy = bookmarkedPolicies.find((p) => p.id === id);
+    const policy = bookmarkedPolicies.find((p) => p.policyId === id);
     if (!policy) return;
 
     const policyCategory = getPolicyCategoryLabel(policy);
@@ -585,9 +564,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   const clearSelection = () => clearCompareSelection();
 
-  const selectedPolicies = bookmarkedPolicies.filter((p) => selected.includes(p.id));
+  const selectedPolicies = bookmarkedPolicies.filter((p) => selected.includes(p.policyId));
   const detailPolicy = detailPolicyId
-      ? bookmarkedPolicies.find((policy) => policy.id === detailPolicyId)
+      ? bookmarkedPolicies.find((policy) => policy.policyId === detailPolicyId)
       : null;
 
   const groupedByCategory = ["주거", "일자리", "복지"].map((cat) => ({
@@ -689,14 +668,14 @@ export function MyPage({ onNavigate }: MyPageProps) {
                       <div className="grid grid-cols-3 gap-5">
                         {policies.map((p) => {
                           const categoryLabel = getPolicyCategoryLabel(p);
-                          const isSelected = selected.includes(p.id);
+                          const isSelected = selected.includes(p.policyId);
                           const isDisabled = !!(lockedCategory && categoryLabel !== lockedCategory);
                           const isFull = selected.length >= 3 && !isSelected;
-                          const isScheduled = scheduledIds.has(p.id) || registeredPolicyIds.has(p.id);
+                          const isScheduled = scheduledIds.has(p.policyId) || registeredPolicyIds.has(p.policyId);
 
                           return (
                               <div
-                                  key={p.id}
+                                  key={p.policyId}
                                   className="bg-white rounded-2xl border flex flex-col transition-all"
                                   style={{
                                     borderColor: isSelected
@@ -715,7 +694,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                   <button
                                       className="flex items-center gap-2 transition-all"
                                       disabled={isDisabled || (isFull && !isSelected)}
-                                      onClick={(e) => toggleSelect(p.id, e)}
+                                      onClick={(e) => toggleSelect(p.policyId, e)}
                                       style={{
                                         background: "none",
                                         border: "none",
@@ -742,14 +721,14 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                   </button>
 
                                   <div className="flex items-center gap-2">
-                                    <P style={{ fontSize: 13, fontWeight: 700, color: p.deadline === "상시" ? "#006a63" : "#ba1a1a" }}>
-                                      {p.deadline}
+                                    <P style={{ fontSize: 13, fontWeight: 700, color: p.deadlineText === "상시" ? "#006a63" : "#ba1a1a" }}>
+                                      {p.deadlineText}
                                     </P>
 
                                     <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setRemoveConfirmId(p.id);
+                                          setRemoveConfirmId(p.policyId);
                                         }}
                                         title="북마크 취소"
                                         style={{
@@ -777,12 +756,12 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                 {/* Card Body */}
                                 <div
                                     className="p-5 flex flex-col flex-1 cursor-pointer hover:bg-slate-50 transition-colors rounded-b-2xl"
-                                    onClick={() => setDetailPolicyId(p.id)}
+                                    onClick={() => setDetailPolicyId(p.policyId)}
                                 >
                                   <P style={{ fontSize: 17, fontWeight: 600, color: "#171d1c", lineHeight: 1.4, marginBottom: 6 }}>{p.title}</P>
-                                  <P style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{p.org}</P>
-                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.amount ?? p.support}</P>
-                                  <P style={{ fontSize: 13, color: "#3c4947" }}>지원규모: {p.support}</P>
+                                  <P style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{p.organization}</P>
+                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.supportScale}</P>
+                                  <P style={{ fontSize: 13, color: "#3c4947" }}>지원규모: {p.supportScale}</P>
 
                                   <div className="flex items-center justify-between mt-4 pt-3 border-t" style={{ borderColor: "#e9efed" }}>
                                     <P style={{ fontSize: 13, color: "#006a63", fontWeight: 500 }}>상세보기 →</P>
@@ -1056,7 +1035,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                     boxShadow: selectedManagedPolicyId === p.id ? "0 0 0 2px rgba(0,106,99,0.2)" : "0 2px 8px rgba(0,0,0,0.05)",
                                     backgroundColor: selectedManagedPolicyId === p.id ? "rgba(0,106,99,0.02)" : "white",
                                   }}
-                                  onClick={() => setSelectedPolicyId(p.id)}
+                                  onClick={() => setSelectedPolicyId(p.id)}   // managedPolicy.id는 calendarEvent.policyId로 별도 관리됨
                               >
                                 <div className="flex items-start justify-between mb-3">
                           <span
@@ -1717,7 +1696,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                     const label = getPolicyCategoryLabel(p);
                     return (
                         <span
-                            key={p.id}
+                            key={p.policyId}
                             className="px-2.5 py-0.5 rounded-full text-xs"
                             style={{ backgroundColor: categoryColor[label].bg, color: categoryColor[label].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
                         >
@@ -1773,7 +1752,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
         )}
 
         {removeConfirmId && (() => {
-          const policy = bookmarkedPolicies.find((p) => p.id === removeConfirmId);
+          const policy = bookmarkedPolicies.find((p) => p.policyId === removeConfirmId);
 
           return (
               <div

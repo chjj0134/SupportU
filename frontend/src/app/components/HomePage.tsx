@@ -6,7 +6,7 @@ import { useBenefitSummary } from "../../api/queries/useBenefitQueries";
 import { useRecommendedPolicies } from "../../api/queries/usePolicyQueries";
 import { useChecklist, useToggleChecklistItem } from "../../api/queries/useChecklistQueries";
 import { P } from "./common/Typography";
-import { CATEGORIES, getCategoryStyle } from "../../constants/categories";
+import { getCategoryStyle } from "../../constants/categories";
 
 interface HomePageProps {
   onNavigate: (page: string, id?: string) => void;
@@ -57,13 +57,13 @@ function EmptyRecommendedPolicies({ onNavigate }: Pick<HomePageProps, "onNavigat
 export function HomePage({ onNavigate }: HomePageProps) {
   const { data: user } = useAuthUser();
   const { data: profile } = useProfile();
-  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
+  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.userId);
   const { data: recommendedPolicies = [], error: recommendedPoliciesError } = useRecommendedPolicies();
   const { data: checklist = [], isLoading: isChecklistLoading, error: checklistError } = useChecklist();
   const toggleMutation = useToggleChecklistItem();
 
   const [activeFilter, setActiveFilter] = useState("전체");
-  const greetingName = user?.name ?? "청년";
+  const greetingName = profile?.name ?? user?.name ?? "청년";
 
   const doneCount = checklist.filter((i) => i.done).length;
   const progress = checklist.length === 0 ? 0 : Math.round((doneCount / checklist.length) * 100);
@@ -83,10 +83,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const filteredPolicies =
       activeFilter === "전체"
           ? recommendedPolicies
-          : recommendedPolicies.filter((p) => {
-            const label = (CATEGORIES as Record<string, { label: string }>)[p.category]?.label;
-            return label === activeFilter;
-          });
+          : recommendedPolicies.filter((p) => p.category === activeFilter);
 
   return (
       <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
@@ -276,58 +273,60 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 <EmptyRecommendedPolicies onNavigate={onNavigate} />
             ) : (
                 <div className="flex gap-6 overflow-x-auto pb-4">
-                  {filteredPolicies.map((policy) => (
-                  <div
-                      key={policy.id}
-                      className="flex-shrink-0 w-80 h-60 bg-white rounded-3xl p-6 flex flex-col justify-between cursor-pointer hover:shadow-md transition-shadow border"
-                      style={{ borderColor: "rgba(0,106,99,0.08)" }}
-                      onClick={() => onNavigate("policy-detail", policy.id)}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        {(() => {
-                          const style = getCategoryStyle(policy.category);
-                          return (
-                              <span
-                                  className="px-2.5 py-1 rounded text-xs font-bold"
-                                  style={{
-                                    backgroundColor: style.bg,
-                                    color: style.text,
-                                    fontFamily: "Pretendard, sans-serif",
-                                  }}
-                              >
-                          {policy.categoryKr}
-                        </span>
-                          );
-                        })()}
-                        <P style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 700, letterSpacing: "0.5px" }}>{policy.region}</P>
+                  {filteredPolicies.map((policy) => {
+                    const categoryStyle = getCategoryStyle(policy.category);
+                    const deadlineDays = parseInt(policy.deadlineText.replace("D-", ""), 10);
+                    const deadlineColor = !Number.isNaN(deadlineDays) && deadlineDays <= 3 ? "#ba1a1a" : "#475569";
+                    return (
+                    <div
+                        key={policy.policyId}
+                        className="flex-shrink-0 w-80 h-60 bg-white rounded-3xl p-6 flex flex-col justify-between cursor-pointer hover:shadow-md transition-shadow border"
+                        style={{ borderColor: "rgba(0,106,99,0.08)" }}
+                        onClick={() => onNavigate("policy-detail", policy.policyId)}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span
+                              className="px-2.5 py-1 rounded text-xs font-bold"
+                              style={{ backgroundColor: categoryStyle.bg, color: categoryStyle.text, fontFamily: "Pretendard, sans-serif" }}
+                          >
+                            {policy.category}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {policy.matchScore != null && (
+                                <span
+                                    className="px-2 py-0.5 rounded-full text-xs font-bold"
+                                    style={{ backgroundColor: "rgba(79,209,197,0.15)", color: "#006a63", fontFamily: "Pretendard, sans-serif" }}
+                                >
+                                  AI {policy.matchScore}%
+                                </span>
+                            )}
+                            {policy.region && (
+                                <P style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 700, letterSpacing: "0.5px" }}>{policy.region}</P>
+                            )}
+                          </div>
+                        </div>
+                        <P style={{ fontSize: 18, color: "#171d1c", fontWeight: 500, marginTop: 8, lineHeight: 1.5 }}>{policy.title}</P>
+                        <P style={{ fontSize: 14, color: "#64748b", marginTop: 6, lineHeight: 1.6 }}>{policy.description}</P>
                       </div>
-                      <P style={{ fontSize: 18, color: "#171d1c", fontWeight: 500, marginTop: 8, lineHeight: 1.5 }}>{policy.title}</P>
-                      <P style={{ fontSize: 14, color: "#64748b", marginTop: 6, lineHeight: 1.6 }}>{policy.desc}</P>
-                    </div>
 
-                    <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: "#f1f5f9" }}>
-                      <P
-                          style={{
-                            fontSize: 16,
-                            fontWeight: 700,
-                            color: parseInt(policy.deadline.replace("D-", "")) <= 3 ? "#ba1a1a" : "#475569",
-                          }}
-                      >
-                        {policy.deadline}
-                      </P>
-                      <button
-                          className="w-8 h-8 rounded-full flex items-center justify-center"
-                          style={{ backgroundColor: "#f8fafc" }}
-                          onClick={(e) => { e.stopPropagation(); onNavigate("policy-detail", policy.id); }}
-                      >
-                        <svg width="12" height="15" viewBox="0 0 12 15" fill="none">
-                          <path d="M2 1H10C10.552 1 11 1.448 11 2V14L6 11L1 14V2C1 1.448 1.448 1 2 1Z" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
+                      <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: "#f1f5f9" }}>
+                        <P style={{ fontSize: 16, fontWeight: 700, color: deadlineColor }}>
+                          {policy.deadlineText}
+                        </P>
+                        <button
+                            className="w-8 h-8 rounded-full flex items-center justify-center"
+                            style={{ backgroundColor: "#f8fafc" }}
+                            onClick={(e) => { e.stopPropagation(); onNavigate("policy-detail", policy.policyId); }}
+                        >
+                          <svg width="12" height="15" viewBox="0 0 12 15" fill="none">
+                            <path d="M2 1H10C10.552 1 11 1.448 11 2V14L6 11L1 14V2C1 1.448 1.448 1 2 1Z" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  ))}
+                    );
+                  })}
 
                   {/* More card */}
                   <div

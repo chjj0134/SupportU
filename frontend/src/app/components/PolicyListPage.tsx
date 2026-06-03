@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import type { Policy } from "../../api/types";
-import { usePolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
+import { usePolicies, useRecommendedPolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { usePolicyFiltersStore } from "../../stores/usePolicyFiltersStore";
 import { P } from "./common/Typography";
 import { Spinner } from "./common/Spinner";
@@ -10,9 +10,9 @@ import { getCategoryStyle, getDeadlineColor } from "../../constants/categories";
 import { PolicyDetailSidePanel } from "./common/PolicyDetailSidePanel";
 
 const categoryColor = {
-  Housing: { bg: getCategoryStyle("Housing").bg, text: getCategoryStyle("Housing").text },
-  Jobs: { bg: getCategoryStyle("Jobs").bg, text: getCategoryStyle("Jobs").text },
-  Welfare: { bg: getCategoryStyle("Welfare").bg, text: getCategoryStyle("Welfare").text },
+  주거: { bg: getCategoryStyle("주거").bg, text: getCategoryStyle("주거").text },
+  일자리: { bg: getCategoryStyle("일자리").bg, text: getCategoryStyle("일자리").text },
+  복지: { bg: getCategoryStyle("복지").bg, text: getCategoryStyle("복지").text },
 };
 
 const deadlineColor = getDeadlineColor;
@@ -71,58 +71,36 @@ function EmptyPoliciesState({ onNavigate }: Pick<PolicyListPageProps, "onNavigat
 }
 
 export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
-  const { data: policies = [], isLoading, error } = usePolicies();
+  const { category: activeFilter, setCategory: setActiveFilter, sort, setSort } = usePolicyFiltersStore();
+  // category/sort를 API에 전달 — 서버에서 필터링/정렬 처리
+  const { data: policies = [], isLoading, error } = usePolicies({ category: activeFilter, sort });
+  const { data: recommendedPolicies = [] } = useRecommendedPolicies();
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const [searchParams, setSearchParams] = useSearchParams();
-  // 필터/정렬은 Zustand store에서 가져와 페이지 간 이동 시에도 유지
-  const { category: activeFilter, setCategory: setActiveFilter, sort, setSort } = usePolicyFiltersStore();
 
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [detailPolicy, setDetailPolicy] = useState<Policy | null>(null);
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
   const detailPolicyId = searchParams.get("detail");
 
-  // 북마크 상태는 서버 데이터에서 직접 파생 - 더 이상 별도 state 불필요
-  const bookmarks = new Set(policies.filter((p) => p.bookmarked).map((p) => p.id));
+  // 북마크 상태는 서버 데이터에서 직접 파생
+  const bookmarks = new Set(policies.filter((p) => p.bookmarked).map((p) => p.policyId));
 
-  const filtered = policies.filter((p) => {
-    if (activeFilter === "전체") return true;
-    if (activeFilter === "주거") return p.category === "Housing";
-    if (activeFilter === "일자리") return p.category === "Jobs";
-    if (activeFilter === "복지") return p.category === "Welfare";
-    return true;
-  });
-
-  // 정렬 적용
-  const sorted = [...filtered].sort((a, b) => {
-    if (sort === "마감일 임박순") {
-      // 상시는 맨 뒤로
-      if (a.deadline === "상시" && b.deadline !== "상시") return 1;
-      if (b.deadline === "상시" && a.deadline !== "상시") return -1;
-      if (a.deadline === "상시" && b.deadline === "상시") return 0;
-
-      // D-숫자 비교 (작은 숫자가 먼저)
-      const aNum = parseInt(a.deadline.replace("D-", ""));
-      const bNum = parseInt(b.deadline.replace("D-", ""));
-      return aNum - bNum;
-    } else if (sort === "최신순") {
-      // ID가 큰 것이 최신 (간단한 예시)
-      return parseInt(b.id) - parseInt(a.id);
-    }
-    return 0;
-  });
+  // 서버에서 이미 필터/정렬 처리하므로 클라이언트 정렬은 최신순(서버 미지원)만 적용
+  const sorted = sort === "최신순"
+      ? [...policies].reverse()
+      : policies;
 
   useEffect(() => {
     if (!detailPolicyId) return;
-
-    const policy = policies.find((item) => item.id === detailPolicyId);
+    const policy = policies.find((item) => item.policyId === detailPolicyId);
     if (policy) setDetailPolicy(policy);
   }, [detailPolicyId, policies]);
 
   const openDetailPolicy = (policy: Policy) => {
     setDetailPolicy(policy);
     const next = new URLSearchParams(searchParams);
-    next.set("detail", policy.id);
+    next.set("detail", policy.policyId);
     setSearchParams(next, { replace: true });
   };
 
@@ -288,16 +266,19 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
               </div>
               <P style={{ fontSize: 18, color: "#171d1c", fontWeight: 500 }}>
                 회원님 프로필 기준 추천 공고{" "}
-                <span style={{ color: "#006a63", fontWeight: 700 }}>24건</span>
+                <span style={{ color: "#006a63", fontWeight: 700 }}>{recommendedPolicies.length}건</span>
               </P>
             </div>
           </div>
 
           {/* Policy Grid */}
           <div className="grid grid-cols-2 gap-6 pb-12">
-            {sorted.map((policy) => (
+            {sorted.map((policy) => {
+              const catStyle = getCategoryStyle(policy.category);
+              const isBookmarked = bookmarks.has(policy.policyId);
+              return (
                 <div
-                    key={policy.id}
+                    key={policy.policyId}
                     className="bg-white rounded-2xl p-7 cursor-pointer hover:shadow-md transition-all border relative"
                     style={{ border: "1px solid rgba(187,201,199,0.4)", boxShadow: "0 8px 24px -4px rgba(79,209,197,0.06)" }}
                     onClick={() => openDetailPolicy(policy)}
@@ -305,30 +286,38 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
                   {/* Gradient corner */}
                   <div
                       className="absolute top-0 right-0 w-32 h-32 rounded-bl-full opacity-50"
-                      style={{ background: `linear-gradient(135deg, ${categoryColor[policy.category]?.bg || "#f1f5f9"} 0%, transparent 100%)` }}
+                      style={{ background: `linear-gradient(135deg, ${catStyle.bg} 0%, transparent 100%)` }}
                   />
 
                   <div className="relative">
                     {/* Top Row */}
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                    <span
-                        className="px-2.5 py-1 rounded text-xs"
-                        style={{ backgroundColor: "#e3e9e7", color: "#3c4947", fontFamily: "Pretendard, sans-serif", fontWeight: 500 }}
-                    >
-                      {policy.categoryKr}
-                    </span>
+                        <span
+                            className="px-2.5 py-1 rounded text-xs"
+                            style={{ backgroundColor: catStyle.bg, color: catStyle.text, fontFamily: "Pretendard, sans-serif", fontWeight: 500 }}
+                        >
+                          {policy.category}
+                        </span>
+                        {policy.matchScore != null && (
+                            <span
+                                className="px-2 py-0.5 rounded-full text-xs font-bold"
+                                style={{ backgroundColor: "rgba(79,209,197,0.15)", color: "#006a63", fontFamily: "Pretendard, sans-serif" }}
+                            >
+                              AI {policy.matchScore}%
+                            </span>
+                        )}
                       </div>
                       <button
-                          onClick={(e) => toggleBookmark(policy.id, e)}
+                          onClick={(e) => toggleBookmark(policy.policyId, e)}
                           className="p-1 transition-colors"
                           style={{ background: "none", border: "none", cursor: "pointer" }}
                       >
                         <svg width="18" height="20" viewBox="0 0 18 20" fill="none">
                           <path
                               d="M2 2H16C16.552 2 17 2.448 17 3V19L9 15L1 19V3C1 2.448 1.448 2 2 2Z"
-                              stroke={bookmarks.has(policy.id) ? "#006a63" : "#6C7A77"}
-                              fill={bookmarks.has(policy.id) ? "#006a63" : "none"}
+                              stroke={isBookmarked ? "#006a63" : "#6C7A77"}
+                              fill={isBookmarked ? "#006a63" : "none"}
                               strokeWidth="1.375"
                           />
                         </svg>
@@ -336,16 +325,16 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
                     </div>
 
                     {/* Title & Org */}
-                    <P style={{ fontSize: 12, color: "#3c4947", fontWeight: 600, letterSpacing: "0.3px", marginBottom: 4 }}>{policy.org}</P>
+                    <P style={{ fontSize: 12, color: "#3c4947", fontWeight: 600, letterSpacing: "0.3px", marginBottom: 4 }}>{policy.organization}</P>
                     <P style={{ fontSize: 18, color: "#171d1c", fontWeight: 600, marginBottom: 8, lineHeight: 1.5 }}>{policy.title}</P>
-                    <P style={{ fontSize: 14, color: "#64748b", lineHeight: 1.6, marginBottom: 16 }}>{policy.desc}</P>
+                    <P style={{ fontSize: 14, color: "#64748b", lineHeight: 1.6, marginBottom: 16 }}>{policy.description}</P>
 
                     {/* Footer */}
                     <div
                         className="flex items-center justify-between pt-4"
                         style={{ borderTop: "1px solid rgba(187,201,199,0.3)" }}
                     >
-                      <P style={{ fontSize: 12, color: "#3c4947" }}>지원규모: {policy.support}</P>
+                      <P style={{ fontSize: 12, color: "#3c4947" }}>지원규모: {policy.supportScale}</P>
                       <button
                           className="text-base font-medium transition-colors hover:opacity-70"
                           style={{ fontFamily: "Pretendard, sans-serif", color: "#006a63", background: "none", border: "none", cursor: "pointer" }}
@@ -356,7 +345,8 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
                     </div>
                   </div>
                 </div>
-            ))}
+              );
+            })}
           </div>
         </main>
 
@@ -365,13 +355,13 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
             <PolicyDetailSidePanel
                 policy={detailPolicy}
                 onClose={closeDetailPolicy}
-                isBookmarked={bookmarks.has(detailPolicy.id)}
+                isBookmarked={bookmarks.has(detailPolicy.policyId)}
                 onToggleBookmark={requestToggleBookmarkFromDetail}
             />
         )}
 
         {removeConfirmId && (() => {
-          const policy = policies.find((item) => item.id === removeConfirmId);
+          const policy = policies.find((item) => item.policyId === removeConfirmId);
 
           return (
               <div

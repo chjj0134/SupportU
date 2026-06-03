@@ -20,19 +20,18 @@ type ToggleBookmarkContext = {
   previousBookmarked?: Policy[];
 };
 
-export function usePolicies() {
+export function usePolicies(params?: { category?: string; sort?: string }) {
   return useQuery({
-    queryKey: queryKeys.policies.list(),
-    queryFn: fetchPolicies,
+    queryKey: [...queryKeys.policies.list(), params?.category, params?.sort],
+    queryFn: () => fetchPolicies(params),
   });
 }
 
-export function usePolicyDetail(id: string | null | undefined) {
+export function usePolicyDetail(policyId: string | null | undefined) {
   return useQuery({
-    queryKey: queryKeys.policies.detail(id ?? ''),
-    queryFn: () => fetchPolicyDetail(id!),
-    // id가 없으면 쿼리를 발사하지 않는다 (조건부 fetching)
-    enabled: !!id,
+    queryKey: queryKeys.policies.detail(policyId ?? ''),
+    queryFn: () => fetchPolicyDetail(policyId!),
+    enabled: !!policyId,
   });
 }
 
@@ -77,7 +76,7 @@ export function useTogglePolicyBookmark() {
 
       const toggleInList = (items?: Policy[]) =>
           items?.map((policy) =>
-              policy.id === id
+              policy.policyId === id
                   ? { ...policy, bookmarked: !policy.bookmarked }
                   : policy,
           );
@@ -99,7 +98,7 @@ export function useTogglePolicyBookmark() {
       if (previousBookmarked) {
         queryClient.setQueryData<Policy[]>(
             queryKeys.policies.bookmarked(),
-            previousBookmarked.filter((policy) => policy.id !== id),
+            previousBookmarked.filter((policy) => policy.policyId !== id),
         );
       }
 
