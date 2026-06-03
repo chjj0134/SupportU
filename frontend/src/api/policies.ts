@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Policy, PolicyDetail } from './types';
+import type { Policy, PolicyDetail, BookmarkResponse } from './types';
 import {
   MOCK_POLICIES,
   MOCK_POLICY_DETAILS,
@@ -15,9 +15,13 @@ const delay = <T>(value: T): Promise<T> =>
     new Promise((resolve) => setTimeout(() => resolve(value), MOCK_LATENCY_MS));
 
 /** 정책 목록 조회 */
-export async function fetchPolicies(): Promise<Policy[]> {
+export async function fetchPolicies(params?: { category?: string; sort?: string }): Promise<Policy[]> {
   if (USE_MOCK) return delay(MOCK_POLICIES);
-  return apiClient.get<Policy[]>('/policies');
+  const query = new URLSearchParams();
+  if (params?.category && params.category !== '전체') query.set('category', params.category);
+  if (params?.sort === '마감일 임박순') query.set('sort', 'deadline');
+  const qs = query.toString();
+  return apiClient.get<Policy[]>(qs ? `/policies?${qs}` : '/policies');
 }
 
 /** 정책 상세 조회 */
@@ -45,16 +49,15 @@ export async function fetchBookmarkedPolicies(): Promise<Policy[]> {
 export async function togglePolicyBookmark(
     id: string,
     bookmarked: boolean,
-): Promise<void> {
+): Promise<BookmarkResponse> {
   if (USE_MOCK) {
     console.info('[mock] toggle bookmark', id, bookmarked);
-    return;
+    return { policyId: id, bookmarked: !bookmarked };
   }
 
   if (bookmarked) {
-    await apiClient.delete(`/policies/${id}/bookmark`);
-    return;
+    return apiClient.delete<BookmarkResponse>(`/policies/${id}/bookmark`);
   }
 
-  await apiClient.post(`/policies/${id}/bookmark`);
+  return apiClient.post<BookmarkResponse>(`/policies/${id}/bookmark`);
 }

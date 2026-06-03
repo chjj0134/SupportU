@@ -1,18 +1,16 @@
 import { apiClient } from './client';
 
 export interface CalendarEvent {
-    cid: number;
+    cid: string;
     policyId: string;
     title: string;
-    org: string;
-    category: string;
-    applyStatus: string;
-    eventStartAt: string;
-    eventEndAt: string;
-    reminderAt: string;
-    googleEventId: string | null;
-    googleEventLink: string | null;
-    appliedAt?: string | null;
+    startDate: string;
+    endDate: string;
+    type: string;        // "deadline" 등\n    org: string;         // 백엔드 기존 필드 (Policy에서 조인)\n    applyStatus: string; // 백엔드 기존 필드 (pending / 지원 완료 / 결과 대기 / 수혜 완료)
+}
+
+export interface DeleteCalendarEventResponse {
+    deleted: boolean;
 }
 
 export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
@@ -25,6 +23,6 @@ export async function createCalendarEventFromPolicy(
     return apiClient.post<CalendarEvent>(`/calendar/events/from-policy/${policyId}`);
 }
 
-export async function deleteCalendarEvent(cid: number): Promise<void> {
-    await apiClient.delete(`/calendar/events/${cid}`);
+export async function deleteCalendarEvent(cid: string): Promise<DeleteCalendarEventResponse> {
+    return apiClient.delete<DeleteCalendarEventResponse>(`/calendar/events/${cid}`);
 }

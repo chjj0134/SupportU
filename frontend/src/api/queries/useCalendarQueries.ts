@@ -29,7 +29,7 @@ export function useDeleteCalendarEvent() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: deleteCalendarEvent,
+        mutationFn: (cid: string) => deleteCalendarEvent(cid),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.calendar.events() });
         },
