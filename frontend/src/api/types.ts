@@ -3,7 +3,7 @@ export interface AuthUser {
   message: string;
   name: string;
   email: string;
-  attributes: Record<string, string>;
+  attributes: Record<string, unknown>;
 }
 
 // Profile
@@ -20,8 +20,18 @@ export interface ProfileRequest {
   preferredCategories: string[];
 }
 
-export interface ProfileResponse extends ProfileRequest {
+export interface ProfileResponse {
   uid: string;
+  age: number | null;
+  gender: string | null;
+  city: string | null;
+  scity: string | null;
+  education: string | null;
+  employment: string | null;
+  disability: boolean | null;
+  incomeInteger: number | null;
+  asset: string | null;
+  preferredCategories: string[] | null;
   createdAt: string;
 }
 
@@ -43,6 +53,7 @@ export interface Policy {
   desc: string;
   region: string;
   bookmarked: boolean;
+  detailUrl?: string | null;
 }
 
 export interface PolicyDetail {
@@ -58,9 +69,9 @@ export interface PolicyDetail {
 }
 
 export interface PolicyDocument {
-  id: number;
-  name: string;
-  required: boolean;
+  id: number | null;
+  name: string | null;
+  required: boolean | null;
   description: string | null;
   url: string | null;
 }
@@ -74,12 +85,17 @@ export interface ExtractPolicyDocumentsResponse {
 // Checklist
 export interface ChecklistItem {
   id: number;
+  policyId?: string;
+  policyName?: string;
+  documentName?: string;
   label: string;
   deadline: string;
+  deadlineText?: string;
   category: string;
   categoryColor: string;
   categoryBg: string;
   deadlineColor: string;
   deadlineBg: string;
+  checked?: boolean;
   done: boolean;
 }
