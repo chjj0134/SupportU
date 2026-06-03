@@ -368,8 +368,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [documentErrorByPolicyId, setDocumentErrorByPolicyId] = useState<Record<string, string>>({});
 
   const managedPolicies = calendarEvents.map((event) => {
-    // 명세 기준 새 API는 applyStatus 미제공 → 기본값 처리
-    const { statusColor, statusBg, progress, journeyStep } = getStatusStyle("pending");
+    const { statusColor, statusBg, progress, journeyStep } = getStatusStyle(event.applyStatus);
     const deadline = event.endDate ?? "상시";
     const dday = event.endDate
       ? Math.max(0, Math.ceil((new Date(event.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
@@ -378,8 +377,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
     return {
       id: event.policyId,
       title: event.title,
-      org: "-",
-      status: "일정 등록",
+      org: event.org,
+      status: event.applyStatus,
       statusColor,
       statusBg,
       progress,

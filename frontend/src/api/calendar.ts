@@ -6,7 +6,7 @@ export interface CalendarEvent {
     title: string;
     startDate: string;
     endDate: string;
-    type: string;     // "deadline" 등
+    type: string;        // "deadline" 등\n    org: string;         // 백엔드 기존 필드 (Policy에서 조인)\n    applyStatus: string; // 백엔드 기존 필드 (pending / 지원 완료 / 결과 대기 / 수혜 완료)
 }
 
 export interface DeleteCalendarEventResponse {
