@@ -24,7 +24,7 @@ OUTPUT_NEED_CHECK_PATH = "output/raw/gyeonggi_need_check_raw.csv"
 OUTPUT_CLOSED_PATH = "output/raw/gyeonggi_closed_raw.csv"
 OUTPUT_OLLAMA_INPUT_PATH = "output/raw/gyeonggi_raw_all.csv"
 
-MAX_PAGES = 100
+MAX_PAGES = 50
 PAGER_LIMIT = 8
 STOP_AFTER_EMPTY_POLICY_PAGES = 3
 
@@ -149,6 +149,18 @@ CLOSED_KEYWORDS = [
     "모집 종료",
 ]
 
+DEADLINE_KEYWORDS = [
+    "까지",
+    "마감",
+    "종료",
+    "접수마감",
+    "신청마감",
+    "모집마감",
+    "접수 종료",
+    "신청 종료",
+    "모집 종료",
+]
+
 
 def today():
     return pd.Timestamp.today().normalize()
@@ -190,6 +202,13 @@ def make_detail_url(category_url: str, policy_id: str, page: int = 1) -> str:
 
 def normalize_date(year, month, day):
     return pd.Timestamp(year=int(year), month=int(month), day=int(day))
+
+
+def normalize_month_end(year, month):
+    year = int(year)
+    month = int(month)
+    last_day = calendar.monthrange(year, month)[1]
+    return pd.Timestamp(year=year, month=month, day=last_day)
 
 
 def extract_year_from_title(title: str):
@@ -296,6 +315,77 @@ def parse_single_dates(text: str):
             dates.append(normalize_date(match.group(1), match.group(2), match.group(3)))
         except Exception:
             pass
+
+    unique_dates = []
+    seen = set()
+
+    for date in dates:
+        key = date.date().isoformat()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_dates.append(date)
+
+    return unique_dates
+
+
+def parse_month_end_dates(text: str):
+    dates = []
+
+    if not isinstance(text, str):
+        return dates
+
+    full_date_spans = []
+
+    for match in re.finditer(r"\d{4}\s*[.\-/년]\s*\d{1,2}\s*[.\-/월]\s*\d{1,2}", text):
+        full_date_spans.append((match.start(), match.end()))
+
+    pattern = r"(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*(?:월|[.\-/])"
+
+    for match in re.finditer(pattern, text):
+        start_pos = match.start()
+        end_pos = match.end()
+
+        if any(span_start <= start_pos < span_end or span_start < end_pos <= span_end for span_start, span_end in full_date_spans):
+            continue
+
+        try:
+            dates.append(normalize_month_end(match.group(1), match.group(2)))
+        except Exception:
+            pass
+
+    unique_dates = []
+    seen = set()
+
+    for date in dates:
+        key = date.date().isoformat()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_dates.append(date)
+
+    return unique_dates
+
+
+def parse_explicit_deadline_dates(text: str):
+    if not isinstance(text, str):
+        return []
+
+    dates = []
+
+    sentences = re.split(r"[\n\r。.!?]|(?<=다)\s+", text)
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+
+        if not sentence:
+            continue
+
+        if not any(keyword in sentence for keyword in DEADLINE_KEYWORDS):
+            continue
+
+        dates.extend(parse_single_dates(sentence))
+        dates.extend(parse_month_end_dates(sentence))
 
     unique_dates = []
     seen = set()
@@ -448,11 +538,12 @@ def classify_policy(title: str, list_text: str, raw_text: str, policy_id: str = 
 
     period_text = get_period_related_text(raw_text)
     period_text = remove_birth_lines(period_text)
+    raw_text_without_birth = remove_birth_lines(raw_text)
 
     detail_ranges = parse_date_ranges(period_text)
 
     if not detail_ranges:
-        detail_ranges = parse_date_ranges(remove_birth_lines(raw_text))
+        detail_ranges = parse_date_ranges(raw_text_without_birth)
 
     if detail_ranges:
         active_ranges = []
@@ -477,13 +568,29 @@ def classify_policy(title: str, list_text: str, raw_text: str, policy_id: str = 
             start, end = future_ranges[0]
             return "need_check", f"future_detail_date_range:{start.date()}~{end.date()}"
 
+    deadline_dates = parse_explicit_deadline_dates(period_text)
+
+    if not deadline_dates:
+        deadline_dates = parse_explicit_deadline_dates(raw_text_without_birth)
+
+    if deadline_dates:
+        latest_deadline = max(deadline_dates)
+
+        if latest_deadline < base_date:
+            return "closed", f"explicit_deadline_expired:{latest_deadline.date()}"
+
+        if has_open_ended_active_keyword(period_text) or has_open_ended_active_keyword(combined_text):
+            return "active", f"explicit_deadline_active:{latest_deadline.date()}"
+
+        return "need_check", f"explicit_deadline_future:{latest_deadline.date()}"
+
     if has_closed_keyword(period_text):
         return "closed", "period_closed_keyword"
 
     single_dates = parse_single_dates(period_text)
 
     if not single_dates:
-        single_dates = parse_single_dates(remove_birth_lines(raw_text))
+        single_dates = parse_single_dates(raw_text_without_birth)
 
     if single_dates and has_open_ended_active_keyword(period_text):
         latest_date = max(single_dates)
