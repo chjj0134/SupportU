@@ -1,12 +1,13 @@
-import { apiClient } from './client';
+﻿import { apiClient } from './client';
 
 export interface CalendarEvent {
     cid: string;
     policyId: string;
     title: string;
-    startDate: string;
-    endDate: string;
-    type: string;        // "deadline" 등\n    org: string;         // 백엔드 기존 필드 (Policy에서 조인)\n    applyStatus: string; // 백엔드 기존 필드 (pending / 지원 완료 / 결과 대기 / 수혜 완료)
+    eventStartAt: string;
+    eventEndAt: string;
+    org: string;
+    applyStatus: string;
 }
 
 export interface DeleteCalendarEventResponse {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import type { Policy, PolicyDetail, PolicyDocument } from "../../api/types";
@@ -131,14 +131,11 @@ function buildCalendarDays(
     const day = index + 1;
     const dayEvents = events
         .filter((event) => {
-          const date = new Date(event.startDate);
+          const date = new Date(event.eventStartAt);
           return date.getFullYear() === year && date.getMonth() + 1 === month && date.getDate() === day;
         })
         .map((event) => {
-          // type이 "deadline"이면 강조(빨강), 그 외는 기본(녹색)
-          const colors = event.type === "deadline"
-              ? { color: "#ffdad6", textColor: "#93000a" }
-              : { color: "rgba(79,209,197,0.2)", textColor: "#006a63" };
+          const colors = { color: "rgba(79,209,197,0.2)", textColor: "#006a63" };
 
           return {
             text: event.title,
@@ -369,9 +366,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   const managedPolicies = calendarEvents.map((event) => {
     const { statusColor, statusBg, progress, journeyStep } = getStatusStyle(event.applyStatus);
-    const deadline = event.endDate ?? "상시";
-    const dday = event.endDate
-      ? Math.max(0, Math.ceil((new Date(event.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    const deadline = event.eventEndAt ?? "상시";
+    const dday = event.eventEndAt
+      ? Math.max(0, Math.ceil((new Date(event.eventEndAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : 0;
 
     return {
@@ -405,7 +402,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
 
   const firstEventDate = calendarEvents.length > 0
-      ? new Date(calendarEvents[0].startDate)
+      ? new Date(calendarEvents[0].eventStartAt)
       : new Date();
   const calendarYear = firstEventDate.getFullYear();
   const calendarMonth = firstEventDate.getMonth() + 1;
@@ -413,6 +410,15 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const calendarDays = buildCalendarDays(calendarEvents, calendarYear, calendarMonth);
   const registeredPolicyIds = new Set(calendarEvents.map((event) => event.policyId));
   const selectedManagedPolicyId = selectedPolicyId || managedPolicies[0]?.id || "";
+
+  // calendarEvents 기반 동적 상태 카운트
+  const appliedCount  = calendarEvents.filter(e => e.applyStatus === '지원 완료' || e.applyStatus === 'applied').length;
+  const waitingCount  = calendarEvents.filter(e => e.applyStatus === '결과 대기').length;
+  const urgentCount   = calendarEvents.filter(e => {
+    if (!e.eventEndAt) return false;
+    const dday = Math.ceil((new Date(e.eventEndAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return dday >= 0 && dday <= 7 && e.applyStatus !== '지원 완료' && e.applyStatus !== 'applied';
+  }).length;
 
   const totalBenefitAmount = benefitSummary?.totalBenefitAmount ?? 0;
   const totalBenefitManwon = Math.floor(totalBenefitAmount / 10000);
@@ -594,7 +600,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
             <div className="ml-auto flex gap-6">
               {[
                 { label: "스크랩", value: bookmarkedPolicies.length.toLocaleString() },
-                { label: "지원 완료", value: "5" },
+                { label: "지원 완료", value: appliedCount.toString() },
                 { label: "수혜 금액", value: isBenefitSummaryLoading ? "..." : `${totalBenefitManwon.toLocaleString()}만원` },
               ].map((stat) => (
                   <div key={stat.label} className="text-center">
@@ -857,9 +863,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
                               </div>
                               <div className="flex flex-col gap-3">
                                 {[
-                                  { label: "지원 필요", sub: "마감 임박 공고", value: "3건", color: "#ba1a1a", bg: "rgba(186,26,26,0.1)" },
-                                  { label: "지원 완료", sub: "이번 달 누적", value: "5건", color: "#006a63", bg: "rgba(0,106,99,0.1)" },
-                                  { label: "결과 대기", sub: "심사 진행 중", value: "2건", color: "#3b6661", bg: "rgba(59,102,97,0.1)" },
+                                  { label: "지원 필요", sub: "마감 임박 공고", value: `${urgentCount}건`, color: "#ba1a1a", bg: "rgba(186,26,26,0.1)" },
+                                  { label: "지원 완료", sub: "이번 달 누적", value: `${appliedCount}건`, color: "#006a63", bg: "rgba(0,106,99,0.1)" },
+                                  { label: "결과 대기", sub: "심사 진행 중", value: `${waitingCount}건`, color: "#3b6661", bg: "rgba(59,102,97,0.1)" },
                                 ].map((card) => (
                                     <div key={card.label} className="flex items-center justify-between p-4 rounded-xl bg-white" style={{ border: "1px solid #e9efed" }}>
                                       <div className="flex items-center gap-3">
