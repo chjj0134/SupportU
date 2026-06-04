@@ -15,7 +15,7 @@ export function useTriggerTotalBenefit(userId?: string | null) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: () => triggerTotalBenefit({ uid: userId ?? '' }),
+        mutationFn: () => triggerTotalBenefit({ userId: userId ?? '' }),
         onSuccess: () => {
             if (userId) {
                 queryClient.invalidateQueries({ queryKey: queryKeys.benefits.summary(userId) });

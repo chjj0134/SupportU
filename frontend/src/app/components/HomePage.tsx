@@ -57,7 +57,7 @@ function EmptyRecommendedPolicies({ onNavigate }: Pick<HomePageProps, "onNavigat
 export function HomePage({ onNavigate }: HomePageProps) {
   const { data: user } = useAuthUser();
   const { data: profile } = useProfile();
-  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.userId);
+  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
   const { data: recommendedPolicies = [], error: recommendedPoliciesError } = useRecommendedPolicies();
   const { data: checklist = [], isLoading: isChecklistLoading, error: checklistError } = useChecklist();
   const toggleMutation = useToggleChecklistItem();

@@ -21,8 +21,7 @@ export interface ProfileRequest {
 }
 
 export interface ProfileResponse {
-  userId: string;
-  name: string | null;
+  uid: string;
   age: number | null;
   gender: string | null;
   city: string | null;

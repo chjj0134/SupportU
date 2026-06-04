@@ -354,8 +354,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const { data: user } = useAuthUser();
   const { data: profile } = useProfile();
   const saveProfileMutation = useSaveProfile();
-  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.userId);
-  const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.userId);
+  const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
+  const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
   const { data: bookmarkedPolicies = [] } = useBookmarkedPolicies();
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const { data: calendarEvents = [] } = useCalendarEvents();

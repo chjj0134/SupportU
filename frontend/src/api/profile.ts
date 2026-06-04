@@ -5,8 +5,7 @@ const USE_MOCK_AUTH = import.meta.env.VITE_MOCK_AUTH === 'true';
 const MOCK_AUTH_STORAGE_KEY = 'supportu-mock-auth';
 
 const MOCK_PROFILE: ProfileResponse = {
-  userId: 'mock-google-id-12345',
-  name: '김지원',
+  uid: 'mock-google-id-12345',
   createdAt: new Date().toISOString(),
   age: 26,
   gender: '남성',
@@ -45,8 +44,7 @@ export async function saveProfile(data: ProfileRequest): Promise<ProfileResponse
     }
 
     return {
-      userId: 'mock-google-id-12345',
-      name: null,
+      uid: 'mock-google-id-12345',
       createdAt: new Date().toISOString(),
       ...data,
     };
