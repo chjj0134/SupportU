@@ -13,7 +13,7 @@ from agents.eligibility_agent import (
 # 테스트 정책 설정
 # ==========================================
 
-TEST_MODE = True
+TEST_MODE = False
 
 TEST_POLICY_IDS = [
 
@@ -60,6 +60,15 @@ def load_user_node(state):
         uid
     ).execute()
 
+    if not user_res.data:
+        return {
+            **state,
+            "user_profile": None,
+            "policies": [],
+            "eligible_records": [],
+            "error": "user_profile not found"
+        }
+
     return {
         **state,
         "user_profile": user_res.data[0]
@@ -68,27 +77,33 @@ def load_user_node(state):
 
 def filter_policy_node(state):
     print("[NODE] filter_policy_node")
+
+    if state.get("error"):
+        return state
+
     user = state["user_profile"]
 
     city = user.get("city", "")
-    age = user.get("age", 0)
+    age = user.get("age") or 0
     user_scity = user.get("scity", "")
 
     query = supabase.table(
         "policies"
     ).select(
         "policy_id, title, eligibility, amin, amax, region, scity"
-    ).in_(
-        "region",
-        [city, "전국"]
     )
 
-    # 테스트 정책만 조회
     if TEST_MODE:
-
+        print("[GET] get test policy data")
         query = query.in_(
             "policy_id",
             TEST_POLICY_IDS
+        )
+    else:
+        print("[GET] get real policy data")
+        query = query.in_(
+            "region",
+            [city, "전국"]
         )
 
     policies_res = query.execute()
@@ -99,19 +114,18 @@ def filter_policy_node(state):
 
         policy_scity = policy.get("scity")
 
-        # 시군구 제한이 있는 정책인 경우
         if policy_scity and policy_scity != user_scity:
             continue
 
         amin = int(
-        float(
+            float(
                 policy.get("amin") or 0
             )
         )
 
         amax = int(
-        float(
-            policy.get("amax") or 99
+            float(
+                policy.get("amax") or 99
             )
         )
 
@@ -126,6 +140,10 @@ def filter_policy_node(state):
 
 def eligibility_worker_node(state):
     print("[NODE] eligibility_worker_node")
+
+    if state.get("error"):
+        return state
+
     user = state["user_profile"]
 
     async def process_policy(
@@ -250,21 +268,27 @@ def eligibility_worker_node(state):
 
 def persist_eligibility_node(state):
     print("persist_eligibility_node")
+
+    if state.get("error"):
+        print("[ERROR] skip persist:", state.get("error"))
+        return state
+
     uid = state["uid"]
+    eligible_records = state.get("eligible_records", [])
 
-    supabase.table(
-        "eligibility_results"
-    ).delete().eq(
-        "uid",
-        uid
-    ).execute()
+    if eligible_records:
+        delete_result = supabase.table(
+            "eligibility_results"
+        ).delete().eq(
+            "uid",
+            uid
+        ).execute()
 
-    if state["eligible_records"]:
 
-        supabase.table(
+        insert_result = supabase.table(
             "eligibility_results"
         ).insert(
-            state["eligible_records"]
+            eligible_records
         ).execute()
 
     return state
