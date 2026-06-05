@@ -63,7 +63,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const toggleMutation = useToggleChecklistItem();
 
   const [activeFilter, setActiveFilter] = useState("전체");
-  const greetingName = profile?.name ?? user?.name ?? "청년";
+  const greetingName = user?.name ?? "청년";
 
   const doneCount = checklist.filter((i) => i.done).length;
   const progress = checklist.length === 0 ? 0 : Math.round((doneCount / checklist.length) * 100);
@@ -275,7 +275,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 <div className="flex gap-6 overflow-x-auto pb-4">
                   {filteredPolicies.map((policy) => {
                     const categoryStyle = getCategoryStyle(policy.category);
-                    const deadlineDays = parseInt(policy.deadlineText.replace("D-", ""), 10);
+                    const deadlineDays = parseInt(policy.deadlineText?.replace("D-", "") ?? "", 10);
                     const deadlineColor = !Number.isNaN(deadlineDays) && deadlineDays <= 3 ? "#ba1a1a" : "#475569";
                     return (
                     <div
