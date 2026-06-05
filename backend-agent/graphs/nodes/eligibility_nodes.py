@@ -72,11 +72,12 @@ def filter_policy_node(state):
 
     city = user.get("city", "")
     age = user.get("age", 0)
+    user_scity = user.get("scity", "")
 
     query = supabase.table(
         "policies"
     ).select(
-        "policy_id, title, summary, eligibility, amin, amax, region"
+        "policy_id, title, eligibility, amin, amax, region, scity"
     ).in_(
         "region",
         [city, "전국"]
@@ -95,6 +96,12 @@ def filter_policy_node(state):
     filtered = []
 
     for policy in policies_res.data:
+
+        policy_scity = policy.get("scity")
+
+        # 시군구 제한이 있는 정책인 경우
+        if policy_scity and policy_scity != user_scity:
+            continue
 
         amin = int(
         float(
