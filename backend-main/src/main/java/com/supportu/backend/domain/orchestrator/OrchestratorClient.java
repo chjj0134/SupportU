@@ -34,7 +34,7 @@ public class OrchestratorClient {
                 .build()
                 .post()
                 .uri("/api/orchestrator/precompute-eligibility")
-                .body(Map.of("user_id", userId))
+                .body(Map.of("uid", userId))
                 .retrieve()
                 .toBodilessEntity();
     }
@@ -45,7 +45,7 @@ public class OrchestratorClient {
                 .build()
                 .post()
                 .uri("/api/orchestrator/total-benefit")
-                .body(Map.of("user_id", userId))
+                .body(Map.of("uid", userId))
                 .retrieve()
                 .toBodilessEntity();
     }
