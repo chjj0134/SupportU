@@ -323,6 +323,13 @@ def normalize_application_method(value):
     return text
 
 
+def remove_chinese(text: str) -> str:
+    """중국어(한자) 문자 제거"""
+    if not text:
+        return text
+    return re.sub(r'[一-鿿㐀-䶿]+', '', text).strip()
+
+
 def normalize_eligibility_v2(value):
     """
     eligibility에 dict 형태가 들어오면 텍스트로 펼쳐서 반환.
@@ -762,10 +769,16 @@ def clean_common_schema(df: pd.DataFrame, scope: str, default_region: str | None
         df.at[idx, "add_condition"] = normalize_null_like(row.get("add_condition"))
 
         if "support_content" in df.columns:
-            df.at[idx, "support_content"] = normalize_support_content(row.get("support_content"))
+            val = normalize_support_content(row.get("support_content"))
+            df.at[idx, "support_content"] = remove_chinese(val) if val else val
 
         if "application_method" in df.columns:
-            df.at[idx, "application_method"] = normalize_application_method(row.get("application_method"))
+            val = normalize_application_method(row.get("application_method"))
+            df.at[idx, "application_method"] = remove_chinese(val) if val else val
+
+        # eligibility 중국어 제거
+        if "eligibility" in df.columns and not is_empty(df.at[idx, "eligibility"]):
+            df.at[idx, "eligibility"] = remove_chinese(str(df.at[idx, "eligibility"]))
 
         for date_col in ["pstart", "pend", "ostart", "oend"]:
             if date_col in df.columns and is_empty(row.get(date_col)):

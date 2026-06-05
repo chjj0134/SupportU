@@ -20,6 +20,42 @@ STOP_AFTER_EMPTY_POLICY_PAGES = 3
 
 CURRENT_YEAR = pd.Timestamp.today().year
 
+
+# ────────────────────────────────────────────────────────────
+# [추가] 카테고리 분류 키워드 (gyeonggi.py와 동일 기준)
+# ────────────────────────────────────────────────────────────
+STRONG_JOB_KEYWORDS = [
+    "취업", "면접", "자기소개서", "자소서", "이력서", "채용", "구직",
+    "옷장", "정장대여", "정장 대여", "합격지원", "합격 지원",
+    "면접사진", "면접 사진", "취업지원", "취업 지원", "청년합격",
+]
+
+CATEGORY_JOB_KEYWORDS = [
+    "직무", "인턴", "일자리", "직업", "직업훈련", "창업", "창직", "자격증",
+    "역량강화", "취창업", "멘토링", "커리어", "현직자", "취업성공", "일경험",
+    "노동", "근로", "스타트업", "면접정장", "직업교육", "인력양성",
+    "해외취업", "해외진출", "봉사단", "아르바이트", "알바", "청년기업", "사업단", "교육",
+]
+
+CATEGORY_HOUSING_KEYWORDS = [
+    "주택", "임대주택", "전세", "월세", "보증금", "이사비", "이사 지원",
+    "부동산", "기숙사", "청약", "안심주택", "전월세", "주거비", "주거급여",
+    "매입임대", "공공임대", "임차보증금", "중개보수", "숙소", "주거 지원",
+    "셰어하우스", "행복주택", "장학관", "주거교육", "주거안정",
+]
+
+
+def infer_category_from_title(title: str) -> str:
+    text = title
+    if any(k in text for k in STRONG_JOB_KEYWORDS):
+        return "일자리"
+    if any(k in text for k in CATEGORY_HOUSING_KEYWORDS):
+        return "주거"
+    if any(k in text for k in CATEGORY_JOB_KEYWORDS):
+        return "일자리"
+    return "복지"
+
+
 ACTIVE_KEYWORDS = [
     "모집중",
     "신청중",
@@ -48,7 +84,43 @@ ACTIVE_KEYWORDS = [
     "계속 운영",
 ]
 
-OPEN_ENDED_ACTIVE_KEYWORDS = [
+OPEN_ENDED_
+# ────────────────────────────────────────────────────────────
+# [추가] 카테고리 분류 키워드 (gyeonggi.py와 동일 기준)
+# ────────────────────────────────────────────────────────────
+STRONG_JOB_KEYWORDS = [
+    "취업", "면접", "자기소개서", "자소서", "이력서", "채용", "구직",
+    "옷장", "정장대여", "정장 대여", "합격지원", "합격 지원",
+    "면접사진", "면접 사진", "취업지원", "취업 지원", "청년합격",
+]
+
+CATEGORY_JOB_KEYWORDS = [
+    "직무", "인턴", "일자리", "직업", "직업훈련", "창업", "창직", "자격증",
+    "역량강화", "취창업", "멘토링", "커리어", "현직자", "취업성공", "일경험",
+    "노동", "근로", "스타트업", "면접정장", "직업교육", "인력양성",
+    "해외취업", "해외진출", "봉사단", "아르바이트", "알바", "청년기업", "사업단", "교육",
+]
+
+CATEGORY_HOUSING_KEYWORDS = [
+    "주택", "임대주택", "전세", "월세", "보증금", "이사비", "이사 지원",
+    "부동산", "기숙사", "청약", "안심주택", "전월세", "주거비", "주거급여",
+    "매입임대", "공공임대", "임차보증금", "중개보수", "숙소", "주거 지원",
+    "셰어하우스", "행복주택", "장학관", "주거교육", "주거안정",
+]
+
+
+def infer_category_from_title(title: str) -> str:
+    text = title
+    if any(k in text for k in STRONG_JOB_KEYWORDS):
+        return "일자리"
+    if any(k in text for k in CATEGORY_HOUSING_KEYWORDS):
+        return "주거"
+    if any(k in text for k in CATEGORY_JOB_KEYWORDS):
+        return "일자리"
+    return "복지"
+
+
+ACTIVE_KEYWORDS = [
     "상시",
     "상시모집",
     "상시 모집",
@@ -601,6 +673,7 @@ def fetch_policy_detail(item: dict):
         "title": item["title"],
         "detail_url": item["detail_url"],
         "list_page": item["list_page"],
+        "schema_category": infer_category_from_title(item["title"]),
         "crawl_status": status,
         "crawl_reason": reason,
         "raw_text": raw_text,
