@@ -90,6 +90,7 @@ function getStatusStyle(applyStatus: string) {
     case "결과 대기":
       return { statusColor: "#3b6661", statusBg: "rgba(59,102,97,0.1)", progress: 70, journeyStep: 2 };
     case "수혜 완료":
+    case "benefited":
       return { statusColor: "#004d40", statusBg: "rgba(0,77,64,0.1)", progress: 100, journeyStep: 3 };
     default:
       return { statusColor: "#ba1a1a", statusBg: "rgba(186,26,26,0.1)", progress: 0, journeyStep: 0 };
