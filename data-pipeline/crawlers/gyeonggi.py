@@ -31,7 +31,8 @@ STOP_AFTER_EMPTY_POLICY_PAGES = 3
 CURRENT_YEAR = pd.Timestamp.today().year
 
 
-JOB_KEYWORDS = [
+# 강한 일자리 키워드 (source_category 오버라이드, 가장 먼저 검사)
+STRONG_JOB_KEYWORDS = [
     "취업",
     "면접",
     "자기소개서",
@@ -39,6 +40,19 @@ JOB_KEYWORDS = [
     "이력서",
     "채용",
     "구직",
+    "옷장",
+    "정장대여",
+    "정장 대여",
+    "합격지원",
+    "합격 지원",
+    "면접사진",
+    "면접 사진",
+    "취업지원",
+    "취업 지원",
+    "청년합격",
+]
+
+JOB_KEYWORDS = [
     "직무",
     "인턴",
     "일자리",
@@ -56,21 +70,28 @@ JOB_KEYWORDS = [
     "일경험",
     "노동",
     "근로",
-    "기업",
-    "청년기업",
     "스타트업",
     "면접정장",
-    "취업지원",
+    "직업교육",
+    "인력양성",
+    "해외취업",
+    "해외진출",
+    "봉사단",
+    "아르바이트",
+    "알바",
+    "청년기업",
+    "사업단",
+    "교육",
 ]
 
 HOUSING_KEYWORDS = [
-    "주거",
     "주택",
-    "임대",
+    "임대주택",
     "전세",
     "월세",
     "보증금",
     "이사비",
+    "이사 지원",
     "부동산",
     "기숙사",
     "청약",
@@ -80,6 +101,15 @@ HOUSING_KEYWORDS = [
     "주거급여",
     "매입임대",
     "공공임대",
+    "임차보증금",
+    "중개보수",
+    "숙소",
+    "주거 지원",
+    "셰어하우스",
+    "행복주택",
+    "장학관",
+    "주거교육",
+    "주거안정",
 ]
 
 ACTIVE_KEYWORDS = [
@@ -167,19 +197,27 @@ def today():
 
 
 def infer_schema_category(source_category: str, title: str, list_text: str = ""):
-    text = f"{source_category} {title} {list_text}"
+    # source_category를 키워드 검사에서 제외 (주거·복지가 주거 키워드로 오인되는 버그 방지)
+    text = f"{title} {list_text}"
 
+    # 1. 강한 일자리 키워드 → 무조건 일자리 (source_category 오버라이드)
+    if any(keyword in text for keyword in STRONG_JOB_KEYWORDS):
+        return "일자리"
+
+    # 2. 주거 키워드 → 주거
     if any(keyword in text for keyword in HOUSING_KEYWORDS):
         return "주거"
 
+    # 3. 일반 일자리 키워드 → 일자리
     if any(keyword in text for keyword in JOB_KEYWORDS):
         return "일자리"
 
+    # 4. source_category 기반 fallback
     if source_category == "일자리·창업":
         return "일자리"
 
     if source_category == "주거·복지":
-        return "주거"
+        return "복지"  # 주거 → 복지로 변경
 
     return "복지"
 
