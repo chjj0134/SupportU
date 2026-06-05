@@ -85,10 +85,12 @@ const funnelData = [
 function getStatusStyle(applyStatus: string) {
   switch (applyStatus) {
     case "지원 완료":
-      return { statusColor: "#006a63", statusBg: "rgba(0,106,99,0.1)", progress: 100, journeyStep: 3 };
+    case "applied":
+      return { statusColor: "#3b6661", statusBg: "rgba(59,102,97,0.1)", progress: 70, journeyStep: 2 };
     case "결과 대기":
       return { statusColor: "#3b6661", statusBg: "rgba(59,102,97,0.1)", progress: 70, journeyStep: 2 };
     case "수혜 완료":
+    case "benefited":
       return { statusColor: "#004d40", statusBg: "rgba(0,77,64,0.1)", progress: 100, journeyStep: 3 };
     default:
       return { statusColor: "#ba1a1a", statusBg: "rgba(186,26,26,0.1)", progress: 0, journeyStep: 0 };
@@ -1222,12 +1224,14 @@ export function MyPage({ onNavigate }: MyPageProps) {
                           ];
 
                           const updateJourneyStep = (step: number) => {
+                            const nextStep = step === 1 ? 2 : step;
+
                             setPolicyJourneySteps((prev) => ({
                               ...prev,
-                              [selectedPolicy.id]: step,
+                              [selectedPolicy.id]: nextStep,
                             }));
 
-                            if ((step === 1 || step === 3) && step !== currentStep) {
+                            if ((step === 1 || step === 3) && nextStep !== currentStep) {
                               triggerTotalBenefitMutation.mutate();
                             }
                           };
