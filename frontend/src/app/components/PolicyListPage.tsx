@@ -83,9 +83,9 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
 
   const filteredPolicies = activeFilter === "전체"
       ? recommendedPolicies
-      : recommendedPolicies.filter((p) => p.category === activeFilter);
+      : recommendedPolicies.filter((p) => p.categoryKr === activeFilter);
 
-  const bookmarks = new Set(filteredPolicies.filter((p) => p.bookmarked).map((p) => p.policyId));
+  const bookmarks = new Set(filteredPolicies.filter((p) => p.bookmarked).map((p) => p.id));
 
   const sorted = sort === "최신순"
       ? [...filteredPolicies].reverse()
@@ -93,14 +93,14 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
 
   useEffect(() => {
     if (!detailPolicyId) return;
-    const policy = recommendedPolicies.find((item) => item.policyId === detailPolicyId);
+    const policy = recommendedPolicies.find((item) => item.id === detailPolicyId);
     if (policy) setDetailPolicy(policy);
   }, [detailPolicyId, recommendedPolicies]);
 
   const openDetailPolicy = (policy: Policy) => {
     setDetailPolicy(policy);
     const next = new URLSearchParams(searchParams);
-    next.set("detail", policy.policyId);
+    next.set("detail", policy.id);
     setSearchParams(next, { replace: true });
   };
 
@@ -271,10 +271,10 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
           <div className="grid grid-cols-2 gap-6 pb-12">
             {sorted.map((policy) => {
               const catStyle = getCategoryStyle(policy.category);
-              const isBookmarked = bookmarks.has(policy.policyId);
+              const isBookmarked = bookmarks.has(policy.id);
               return (
                 <div
-                    key={policy.policyId}
+                    key={policy.id}
                     className="bg-white rounded-2xl p-7 cursor-pointer hover:shadow-md transition-all border relative"
                     style={{ border: "1px solid rgba(187,201,199,0.4)", boxShadow: "0 8px 24px -4px rgba(79,209,197,0.06)" }}
                     onClick={() => openDetailPolicy(policy)}
@@ -293,11 +293,11 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
                             className="px-2.5 py-1 rounded text-xs"
                             style={{ backgroundColor: catStyle.bg, color: catStyle.text, fontFamily: "Pretendard, sans-serif", fontWeight: 500 }}
                         >
-                          {policy.category}
+                          {policy.categoryKr}
                         </span>
                       </div>
                       <button
-                          onClick={(e) => toggleBookmark(policy.policyId, e)}
+                          onClick={(e) => toggleBookmark(policy.id, e)}
                           className="p-1 transition-colors"
                           style={{ background: "none", border: "none", cursor: "pointer" }}
                       >
@@ -313,16 +313,16 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
                     </div>
 
                     {/* Title & Org */}
-                    <P style={{ fontSize: 12, color: "#3c4947", fontWeight: 600, letterSpacing: "0.3px", marginBottom: 4 }}>{policy.organization}</P>
+                    <P style={{ fontSize: 12, color: "#3c4947", fontWeight: 600, letterSpacing: "0.3px", marginBottom: 4 }}>{policy.org}</P>
                     <P style={{ fontSize: 18, color: "#171d1c", fontWeight: 600, marginBottom: 8, lineHeight: 1.5 }}>{policy.title}</P>
-                    <P style={{ fontSize: 14, color: "#64748b", lineHeight: 1.6, marginBottom: 16 }}>{policy.description}</P>
+                    <P style={{ fontSize: 14, color: "#64748b", lineHeight: 1.6, marginBottom: 16 }}>{policy.desc}</P>
 
                     {/* Footer */}
                     <div
                         className="flex items-center justify-between pt-4"
                         style={{ borderTop: "1px solid rgba(187,201,199,0.3)" }}
                     >
-                      <P style={{ fontSize: 12, color: "#3c4947" }}>지원규모: {policy.supportScale}</P>
+                      <P style={{ fontSize: 12, color: "#3c4947" }}>지원규모: {policy.support}</P>
                       <button
                           className="text-base font-medium transition-colors hover:opacity-70"
                           style={{ fontFamily: "Pretendard, sans-serif", color: "#006a63", background: "none", border: "none", cursor: "pointer" }}
@@ -343,13 +343,13 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
             <PolicyDetailSidePanel
                 policy={detailPolicy}
                 onClose={closeDetailPolicy}
-                isBookmarked={bookmarks.has(detailPolicy.policyId)}
+                isBookmarked={bookmarks.has(detailPolicy.id)}
                 onToggleBookmark={requestToggleBookmarkFromDetail}
             />
         )}
 
         {removeConfirmId && (() => {
-          const policy = recommendedPolicies.find((item) => item.policyId === removeConfirmId);
+          const policy = recommendedPolicies.find((item) => item.id === removeConfirmId);
 
           return (
               <div

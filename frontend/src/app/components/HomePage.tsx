@@ -275,14 +275,14 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 <div className="flex gap-6 overflow-x-auto pb-4">
                   {filteredPolicies.map((policy) => {
                     const categoryStyle = getCategoryStyle(policy.category);
-                    const deadlineDays = parseInt(policy.deadlineText?.replace("D-", "") ?? "", 10);
+                    const deadlineDays = parseInt(policy.deadline?.replace("D-", "") ?? "", 10);
                     const deadlineColor = !Number.isNaN(deadlineDays) && deadlineDays <= 3 ? "#ba1a1a" : "#475569";
                     return (
                     <div
-                        key={policy.policyId}
+                        key={policy.id}
                         className="flex-shrink-0 w-80 h-60 bg-white rounded-3xl p-6 flex flex-col justify-between cursor-pointer hover:shadow-md transition-shadow border"
                         style={{ borderColor: "rgba(0,106,99,0.08)" }}
-                        onClick={() => onNavigate("policy-detail", policy.policyId)}
+                        onClick={() => onNavigate("policy-detail", policy.id)}
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
@@ -290,24 +290,24 @@ export function HomePage({ onNavigate }: HomePageProps) {
                               className="px-2.5 py-1 rounded text-xs font-bold"
                               style={{ backgroundColor: categoryStyle.bg, color: categoryStyle.text, fontFamily: "Pretendard, sans-serif" }}
                           >
-                            {policy.category}
+                            {policy.categoryKr}
                           </span>
                           {policy.region && (
                             <P style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 700, letterSpacing: "0.5px" }}>{policy.region}</P>
                           )}
                         </div>
                         <P style={{ fontSize: 18, color: "#171d1c", fontWeight: 500, marginTop: 8, lineHeight: 1.5 }}>{policy.title}</P>
-                        <P style={{ fontSize: 14, color: "#64748b", marginTop: 6, lineHeight: 1.6 }}>{policy.description}</P>
+                        <P style={{ fontSize: 14, color: "#64748b", marginTop: 6, lineHeight: 1.6 }}>{policy.desc}</P>
                       </div>
 
                       <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: "#f1f5f9" }}>
                         <P style={{ fontSize: 16, fontWeight: 700, color: deadlineColor }}>
-                          {policy.deadlineText}
+                          {policy.deadline}
                         </P>
                         <button
                             className="w-8 h-8 rounded-full flex items-center justify-center"
                             style={{ backgroundColor: "#f8fafc" }}
-                            onClick={(e) => { e.stopPropagation(); onNavigate("policy-detail", policy.policyId); }}
+                            onClick={(e) => { e.stopPropagation(); onNavigate("policy-detail", policy.id); }}
                         >
                           <svg width="12" height="15" viewBox="0 0 12 15" fill="none">
                             <path d="M2 1H10C10.552 1 11 1.448 11 2V14L6 11L1 14V2C1 1.448 1.448 1 2 1Z" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

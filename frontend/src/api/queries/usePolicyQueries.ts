@@ -76,7 +76,7 @@ export function useTogglePolicyBookmark() {
 
       const toggleInList = (items?: Policy[]) =>
           items?.map((policy) =>
-              policy.policyId === id
+              policy.id === id
                   ? { ...policy, bookmarked: !policy.bookmarked }
                   : policy,
           );
@@ -98,7 +98,7 @@ export function useTogglePolicyBookmark() {
       if (previousBookmarked) {
         queryClient.setQueryData<Policy[]>(
             queryKeys.policies.bookmarked(),
-            previousBookmarked.filter((policy) => policy.policyId !== id),
+            previousBookmarked.filter((policy) => policy.id !== id),
         );
       }
 
