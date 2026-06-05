@@ -53,6 +53,7 @@ temp/
 ### Backend local config ###
 **/application-local.yml
 **/application-*.local.yml
+**/pnpm-lock.yaml
 **/.env
 **/.env.*
 
