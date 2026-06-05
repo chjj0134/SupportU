@@ -161,7 +161,8 @@ def effect_worker_node(state):
         benefited_policy_ids = {
             event["policy_id"]
             for event in benefited_events
-        }
+            if event.get("policy_id")
+}
 
         # benefited 정책만 필터링
         benefited_policies = [
