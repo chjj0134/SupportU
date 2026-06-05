@@ -53,6 +53,11 @@ const emptyProfileData: ProfileFormState = {
   interests: [],
 };
 
+const districtsByRegion: Record<string, string[]> = {
+  서울특별시: ["강남구", "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구", "노원구", "도봉구", "동대문구", "동작구", "마포구", "서대문구", "서초구", "성동구", "성북구", "송파구", "양천구", "영등포구", "용산구", "은평구", "종로구", "중구", "중랑구"],
+  경기도: ["수원시", "성남시", "고양시", "용인시", "부천시", "안산시", "안양시", "남양주시", "화성시", "평택시", "의정부시", "시흥시", "파주시", "김포시", "광명시", "광주시", "군포시", "오산시", "이천시", "양주시", "안성시", "구리시", "포천시", "의왕시", "하남시", "여주시", "동두천시", "과천시"],
+};
+
 function getPolicyCategoryLabel(policy: MyPagePolicy): PolicyCategoryLabel {
   if (policy.category === "주거" || policy.category === "일자리" || policy.category === "복지") {
     return policy.category;
@@ -526,6 +531,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
     [profile?.city, profile?.scity].filter(Boolean).join(" ") || null,
     profile?.employment ?? null,
   ].filter(Boolean).join(" · ") || "프로필 정보를 불러오는 중입니다.";
+  const districtOptions = districtsByRegion[profileData.region] ?? [];
 
   /* derive locked category from first selection */
   const lockedCategory = selected.length > 0
@@ -1541,7 +1547,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                       <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>지역</P>
                       <select
                           value={profileData.region}
-                          onChange={(e) => setProfileData({ ...profileData, region: e.target.value })}
+                          onChange={(e) => setProfileData({ ...profileData, region: e.target.value, district: "" })}
                           disabled={!isEditingProfile}
                           className="h-12 rounded-xl px-4"
                           style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.region ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
@@ -1549,23 +1555,23 @@ export function MyPage({ onNavigate }: MyPageProps) {
                         <option value="">정보 없음</option>
                         <option value="서울특별시">서울특별시</option>
                         <option value="경기도">경기도</option>
-                        <option value="인천광역시">인천광역시</option>
-                        <option value="부산광역시">부산광역시</option>
-                        <option value="대구광역시">대구광역시</option>
                       </select>
                     </div>
 
                     <div className="flex flex-col gap-2">
                       <P style={{ fontSize: 13, fontWeight: 700, color: "#3c4947" }}>시/군/구</P>
-                      <input
-                          type="text"
+                      <select
                           value={profileData.district}
                           onChange={(e) => setProfileData({ ...profileData, district: e.target.value })}
-                          disabled={!isEditingProfile}
-                          placeholder="정보 없음"
+                          disabled={!isEditingProfile || districtOptions.length === 0}
                           className="h-12 rounded-xl px-4"
-                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile ? "white" : "#f8fafb", color: profileData.district ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
-                      />
+                          style={{ border: "1px solid #e3e9e7", backgroundColor: isEditingProfile && districtOptions.length > 0 ? "white" : "#f8fafb", color: profileData.district ? "#171d1c" : "#94a3b8", fontFamily: "Pretendard, sans-serif" }}
+                      >
+                        <option value="">정보 없음</option>
+                        {districtOptions.map((district) => (
+                            <option key={district} value={district}>{district}</option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="flex flex-col gap-2">
