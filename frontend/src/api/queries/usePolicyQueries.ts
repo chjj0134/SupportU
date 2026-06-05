@@ -7,7 +7,7 @@ import {
   togglePolicyBookmark,
 } from '../policies';
 import { queryKeys } from '../../lib/queryClient';
-import type { Policy } from '../types';
+import type { Policy, BookmarkResponse } from '../types';
 
 type ToggleBookmarkVariables = {
   id: string;
@@ -56,10 +56,10 @@ export function useBookmarkedPolicies() {
 export function useTogglePolicyBookmark() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, ToggleBookmarkVariables, ToggleBookmarkContext>({
+  return useMutation<BookmarkResponse, Error, ToggleBookmarkVariables, ToggleBookmarkContext>({
     mutationFn: ({ id, bookmarked }) => togglePolicyBookmark(id, bookmarked),
 
-    onMutate: async ({ id }) => {
+    onMutate: async ({ id, bookmarked }) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: queryKeys.policies.list() }),
         queryClient.cancelQueries({ queryKey: queryKeys.policies.recommended() }),
@@ -96,10 +96,24 @@ export function useTogglePolicyBookmark() {
       }
 
       if (previousBookmarked) {
-        queryClient.setQueryData<Policy[]>(
-            queryKeys.policies.bookmarked(),
-            previousBookmarked.filter((policy) => policy.id !== id),
-        );
+        if (bookmarked) {
+          // 북마크 제거: 캐시에서 즉시 삭제
+          queryClient.setQueryData<Policy[]>(
+              queryKeys.policies.bookmarked(),
+              previousBookmarked.filter((policy) => policy.id !== id),
+          );
+        } else {
+          // 북마크 추가: recommended/list 캐시에서 찾아 즉시 삽입
+          const policyToAdd =
+              previousRecommended?.find((p) => p.id === id) ??
+              previousList?.find((p) => p.id === id);
+          if (policyToAdd) {
+            queryClient.setQueryData<Policy[]>(
+                queryKeys.policies.bookmarked(),
+                [...previousBookmarked, { ...policyToAdd, bookmarked: true }],
+            );
+          }
+        }
       }
 
       return {
