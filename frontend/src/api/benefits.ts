@@ -15,7 +15,7 @@ export interface BenefitSummaryResponse {
 }
 
 export interface TotalBenefitRequest {
-    uid: string;
+    userId: string;
 }
 
 export async function getBenefitSummary(userId: string): Promise<BenefitSummaryResponse> {
