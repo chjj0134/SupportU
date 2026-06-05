@@ -520,7 +520,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
     );
   };
 
-  const profileName = profile?.name ?? user?.name ?? "청년";
+  const profileName = user?.name ?? "청년";
   const profileSummary = [
     profile?.age ? `만 ${profile.age}세` : null,
     [profile?.city, profile?.scity].filter(Boolean).join(" ") || null,
