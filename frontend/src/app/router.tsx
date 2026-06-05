@@ -38,11 +38,11 @@ function ProtectedLayout() {
   const { data: profile, isLoading: isProfileLoading } = useProfile();
   const navigate = useNavigate();
 
-  //if (isAuthLoading) return <Spinner fullScreen label="로딩 중..." />;
-  //if (!user) return <Navigate to="/login" replace />;
+  if (isAuthLoading) return <Spinner fullScreen label="로딩 중..." />;
+  if (!user) return <Navigate to="/login" replace />;
 
   if (isProfileLoading) return <Spinner fullScreen label="프로필 확인 중..." />;
-  //if (!isProfileComplete(profile)) return <Navigate to="/signup" replace />;
+  if (!isProfileComplete(profile)) return <Navigate to="/signup" replace />;
 
   const handleNavigate = (page: string, id?: string) => {
     if (page === 'policy-detail' && id) navigate(`/policies?detail=${encodeURIComponent(id)}`);
