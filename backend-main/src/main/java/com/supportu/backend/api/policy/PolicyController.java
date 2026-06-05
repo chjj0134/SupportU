@@ -52,10 +52,12 @@ public class PolicyController {
                 uid
         );
 
+
         recommendedPolicyIds = recommendedPolicyIds.stream()
                 .collect(Collectors.toCollection(LinkedHashSet::new))
                 .stream()
                 .toList();
+
 
         if (recommendedPolicyIds.isEmpty()) {
             return List.of();
@@ -65,7 +67,7 @@ public class PolicyController {
                 .stream()
                 .collect(Collectors.toMap(Policy::getPolicyId, Function.identity()));
 
-        return recommendedPolicyIds.stream()
+        List<PolicyResponse> responses = recommendedPolicyIds.stream()
                 .map(policiesById::get)
                 .filter(policy -> policy != null)
                 .map(policy -> PolicyResponse.from(
@@ -73,6 +75,8 @@ public class PolicyController {
                         bookmarkRepository.existsByUidAndPolicyId(uid, policy.getPolicyId())
                 ))
                 .toList();
+
+        return responses;
     }
 
     @GetMapping
