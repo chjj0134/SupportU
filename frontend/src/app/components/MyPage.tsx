@@ -59,8 +59,8 @@ const districtsByRegion: Record<string, string[]> = {
 };
 
 function getPolicyCategoryLabel(policy: MyPagePolicy): PolicyCategoryLabel {
-  if (policy.category === "주거" || policy.category === "일자리" || policy.category === "복지") {
-    return policy.category;
+  if (policy.categoryKr === "주거" || policy.categoryKr === "일자리" || policy.categoryKr === "복지") {
+    return policy.categoryKr;
   }
   return "복지";
 }
@@ -74,9 +74,9 @@ const categoryColor: Record<string, { bg: string; text: string; border: string }
 };
 
 const compareFields: { key: keyof MyPagePolicy; label: string }[] = [
-  { key: "organization", label: "주관 기관" },
-  { key: "supportScale", label: "지원 규모" },
-  { key: "description", label: "지원 개요" },
+  { key: "org", label: "주관 기관" },
+  { key: "support", label: "지원 규모" },
+  { key: "desc", label: "지원 개요" },
 ];
 
 const funnelData = [
@@ -176,8 +176,8 @@ function CompareModal({
 
   const detailResults = useQueries({
     queries: policies.map((p) => ({
-      queryKey: queryKeys.policies.detail(p.policyId),
-      queryFn: () => fetchPolicyDetail(p.policyId),
+      queryKey: queryKeys.policies.detail(p.id),
+      queryFn: () => fetchPolicyDetail(p.id),
     })),
   });
   const details = detailResults.map((r) => r.data ?? null);
@@ -242,7 +242,7 @@ function CompareModal({
                 const categoryLabel = getPolicyCategoryLabel(p);
 
                 return (
-                    <div key={p.policyId} className="bg-white px-5 py-4">
+                    <div key={p.id} className="bg-white px-5 py-4">
                 <span
                     className="inline-block px-2 py-0.5 rounded-full text-xs mb-2"
                     style={{ backgroundColor: categoryColor[categoryLabel].bg, color: categoryColor[categoryLabel].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
@@ -250,7 +250,7 @@ function CompareModal({
                   {categoryLabel}
                 </span>
                       <P style={{ fontSize: 15, fontWeight: 700, color: "#171d1c", lineHeight: 1.4 }}>{p.title}</P>
-                      <P style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{p.organization}</P>
+                      <P style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{p.org}</P>
                     </div>
                 );
               })}
@@ -265,15 +265,15 @@ function CompareModal({
                 <P style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>마감일</P>
               </div>
               {policies.map((p) => (
-                  <div key={p.policyId} className="bg-white px-5 py-4">
+                  <div key={p.id} className="bg-white px-5 py-4">
                     <P
                         style={{
                           fontSize: 14,
                           fontWeight: 700,
-                          color: p.deadlineText === "상시" ? "#006a63" : parseInt(p.deadlineText.replace("D-", "")) <= 7 ? "#ba1a1a" : "#f97316",
+                          color: p.deadline === "상시" ? "#006a63" : parseInt(p.deadline.replace("D-", "")) <= 7 ? "#ba1a1a" : "#f97316",
                         }}
                     >
-                      {p.deadlineText}
+                      {p.deadline}
                     </P>
                   </div>
               ))}
@@ -295,7 +295,7 @@ function CompareModal({
                   {policies.map((p) => {
                     const value = p[field.key as keyof MyPagePolicy] ?? "-";
                     return (
-                        <div key={p.policyId} className="bg-white px-5 py-4">
+                        <div key={p.id} className="bg-white px-5 py-4">
                           {field.key === "supportScale" ? (
                               <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63" }}>{String(value)}</P>
                           ) : (
@@ -317,8 +317,8 @@ function CompareModal({
               <P style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>일정 추가</P>
             </div>
             {policies.map((p) => (
-                <div key={p.policyId} className="bg-white px-5 py-5">
-                  {scheduled.has(p.policyId) ? (
+                <div key={p.id} className="bg-white px-5 py-5">
+                  {scheduled.has(p.id) ? (
                       <div
                           className="h-11 rounded-xl flex items-center justify-center gap-2"
                           style={{ backgroundColor: "#f0fdf4", border: "1px solid #16a34a" }}
@@ -333,7 +333,7 @@ function CompareModal({
                       <button
                           className="w-full h-11 rounded-xl flex items-center justify-center gap-2 transition-all hover:opacity-90"
                           style={{ backgroundColor: "#006a63", border: "none", cursor: "pointer" }}
-                          onClick={() => handleSchedule(p.policyId)}
+                          onClick={() => handleSchedule(p.id)}
                       >
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                           <rect x="1" y="2" width="14" height="13" rx="2" stroke="white" strokeWidth="1.3" />
@@ -535,14 +535,14 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   /* derive locked category from first selection */
   const lockedCategory = selected.length > 0
-      ? bookmarkedPolicies.find((p) => p.policyId === selected[0])
-          ? getPolicyCategoryLabel(bookmarkedPolicies.find((p) => p.policyId === selected[0])!)
+      ? bookmarkedPolicies.find((p) => p.id === selected[0])
+          ? getPolicyCategoryLabel(bookmarkedPolicies.find((p) => p.id === selected[0])!)
           : null
       : null;
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const policy = bookmarkedPolicies.find((p) => p.policyId === id);
+    const policy = bookmarkedPolicies.find((p) => p.id === id);
     if (!policy) return;
 
     const policyCategory = getPolicyCategoryLabel(policy);
@@ -577,9 +577,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   const clearSelection = () => clearCompareSelection();
 
-  const selectedPolicies = bookmarkedPolicies.filter((p) => selected.includes(p.policyId));
+  const selectedPolicies = bookmarkedPolicies.filter((p) => selected.includes(p.id));
   const detailPolicy = detailPolicyId
-      ? bookmarkedPolicies.find((policy) => policy.policyId === detailPolicyId)
+      ? bookmarkedPolicies.find((policy) => policy.id === detailPolicyId)
       : null;
 
   const groupedByCategory = ["주거", "일자리", "복지"].map((cat) => ({
@@ -681,14 +681,14 @@ export function MyPage({ onNavigate }: MyPageProps) {
                       <div className="grid grid-cols-3 gap-5">
                         {policies.map((p) => {
                           const categoryLabel = getPolicyCategoryLabel(p);
-                          const isSelected = selected.includes(p.policyId);
+                          const isSelected = selected.includes(p.id);
                           const isDisabled = !!(lockedCategory && categoryLabel !== lockedCategory);
                           const isFull = selected.length >= 3 && !isSelected;
-                          const isScheduled = scheduledIds.has(p.policyId) || registeredPolicyIds.has(p.policyId);
+                          const isScheduled = scheduledIds.has(p.id) || registeredPolicyIds.has(p.id);
 
                           return (
                               <div
-                                  key={p.policyId}
+                                  key={p.id}
                                   className="bg-white rounded-2xl border flex flex-col transition-all"
                                   style={{
                                     borderColor: isSelected
@@ -707,7 +707,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                   <button
                                       className="flex items-center gap-2 transition-all"
                                       disabled={isDisabled || (isFull && !isSelected)}
-                                      onClick={(e) => toggleSelect(p.policyId, e)}
+                                      onClick={(e) => toggleSelect(p.id, e)}
                                       style={{
                                         background: "none",
                                         border: "none",
@@ -734,14 +734,14 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                   </button>
 
                                   <div className="flex items-center gap-2">
-                                    <P style={{ fontSize: 13, fontWeight: 700, color: p.deadlineText === "상시" ? "#006a63" : "#ba1a1a" }}>
-                                      {p.deadlineText}
+                                    <P style={{ fontSize: 13, fontWeight: 700, color: p.deadline === "상시" ? "#006a63" : "#ba1a1a" }}>
+                                      {p.deadline}
                                     </P>
 
                                     <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setRemoveConfirmId(p.policyId);
+                                          setRemoveConfirmId(p.id);
                                         }}
                                         title="북마크 취소"
                                         style={{
@@ -769,12 +769,12 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                 {/* Card Body */}
                                 <div
                                     className="p-5 flex flex-col flex-1 cursor-pointer hover:bg-slate-50 transition-colors rounded-b-2xl"
-                                    onClick={() => setDetailPolicyId(p.policyId)}
+                                    onClick={() => setDetailPolicyId(p.id)}
                                 >
                                   <P style={{ fontSize: 17, fontWeight: 600, color: "#171d1c", lineHeight: 1.4, marginBottom: 6 }}>{p.title}</P>
-                                  <P style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{p.organization}</P>
-                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.supportScale}</P>
-                                  <P style={{ fontSize: 13, color: "#3c4947" }}>지원규모: {p.supportScale}</P>
+                                  <P style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{p.org}</P>
+                                  <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63", marginBottom: 12 }}>{p.support}</P>
+                                  <P style={{ fontSize: 13, color: "#3c4947" }}>지원규모: {p.support}</P>
 
                                   <div className="flex items-center justify-between mt-4 pt-3 border-t" style={{ borderColor: "#e9efed" }}>
                                     <P style={{ fontSize: 13, color: "#006a63", fontWeight: 500 }}>상세보기 →</P>
@@ -1711,7 +1711,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                     const label = getPolicyCategoryLabel(p);
                     return (
                         <span
-                            key={p.policyId}
+                            key={p.id}
                             className="px-2.5 py-0.5 rounded-full text-xs"
                             style={{ backgroundColor: categoryColor[label].bg, color: categoryColor[label].text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
                         >
@@ -1767,7 +1767,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
         )}
 
         {removeConfirmId && (() => {
-          const policy = bookmarkedPolicies.find((p) => p.policyId === removeConfirmId);
+          const policy = bookmarkedPolicies.find((p) => p.id === removeConfirmId);
 
           return (
               <div

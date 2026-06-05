@@ -43,15 +43,17 @@ export interface EligibilityItem {
 
 // Policy (전체 목록 / 북마크 목록 공통)
 export interface Policy {
-  policyId: string;
+  id: string;
   title: string;
-  category: string;        // 한글 카테고리 (주거/일자리/복지)
-  organization: string;
-  description: string;
-  supportScale: string;
-  deadlineText: string;
+  category: string;        // 영문 카테고리 (Housing/Jobs/Welfare)
+  categoryKr: string;      // 한글 카테고리 (주거/일자리/복지)
+  org: string;
+  desc: string;
+  support: string;
+  deadline: string;
   bookmarked: boolean;
-  region?: string;         // 추천 정책에서 추가 제공
+  region?: string;
+  detailUrl?: string | null;
 }
 
 export interface PolicyDetail {

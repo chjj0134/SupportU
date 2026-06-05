@@ -20,11 +20,11 @@ export function PolicyDetailSidePanel({
                                         onToggleBookmark,
                                       }: PolicyDetailSidePanelProps) {
   const [applied, setApplied] = useState(false);
-  const { data: details } = usePolicyDetail(policy.policyId);
+  const { data: details } = usePolicyDetail(policy.id);
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
 
   const handleApply = () => {
-    createCalendarEventMutation.mutate(policy.policyId, {
+    createCalendarEventMutation.mutate(policy.id, {
       onSuccess: () => {
         setApplied(true);
         toast.success("Google Calendar에 일정이 등록되었습니다.");
@@ -37,7 +37,7 @@ export function PolicyDetailSidePanel({
   };
 
   const categoryStyle = getCategoryStyle(policy.category);
-  const deadlineColor = policy.deadlineText === "상시" ? "#006a63" : "#ba1a1a";
+  const deadlineColor = policy.deadline === "상시" ? "#006a63" : "#ba1a1a";
 
   const applicationPeriod = details
       ? [details.applicationStartDate, details.applicationEndDate].filter(Boolean).join(" ~ ") || "공고문 확인 필요"
@@ -84,14 +84,14 @@ export function PolicyDetailSidePanel({
                       className="px-2.5 py-1 rounded text-xs"
                       style={{ backgroundColor: categoryStyle.bg, color: categoryStyle.text, fontFamily: "Pretendard, sans-serif", fontWeight: 600 }}
                   >
-                    {policy.category}
+                    {policy.categoryKr}
                   </span>
-                  <P style={{ fontSize: 13, color: deadlineColor, fontWeight: 700 }}>{policy.deadlineText}</P>
+                  <P style={{ fontSize: 13, color: deadlineColor, fontWeight: 700 }}>{policy.deadline}</P>
                 </div>
                 <h2 style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 700, fontSize: 26, color: "#171d1c", margin: "0 0 4px 0" }}>
                   {policy.title}
                 </h2>
-                <P style={{ fontSize: 15, color: "#3c4947" }}>{policy.organization}</P>
+                <P style={{ fontSize: 15, color: "#3c4947" }}>{policy.org}</P>
               </div>
             </div>
 
@@ -227,7 +227,7 @@ export function PolicyDetailSidePanel({
                     fontWeight: 700,
                     cursor: "pointer",
                   }}
-                  onClick={() => onToggleBookmark(policy.policyId)}
+                  onClick={() => onToggleBookmark(policy.id)}
               >
                 <svg width="18" height="20" viewBox="0 0 18 20" fill="none">
                   <path
