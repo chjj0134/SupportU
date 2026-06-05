@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import type { Policy } from "../../api/types";
-import { usePolicies, useRecommendedPolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
+import { useRecommendedPolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { usePolicyFiltersStore } from "../../stores/usePolicyFiltersStore";
 import { P } from "./common/Typography";
 import { Spinner } from "./common/Spinner";
@@ -72,9 +72,7 @@ function EmptyPoliciesState({ onNavigate }: Pick<PolicyListPageProps, "onNavigat
 
 export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
   const { category: activeFilter, setCategory: setActiveFilter, sort, setSort } = usePolicyFiltersStore();
-  // category/sort를 API에 전달 — 서버에서 필터링/정렬 처리
-  const { data: policies = [], isLoading, error } = usePolicies({ category: activeFilter, sort });
-  const { data: recommendedPolicies = [] } = useRecommendedPolicies();
+  const { data: recommendedPolicies = [], isLoading, error } = useRecommendedPolicies();
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -83,19 +81,21 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
   const detailPolicyId = searchParams.get("detail");
 
-  // 북마크 상태는 서버 데이터에서 직접 파생
-  const bookmarks = new Set(policies.filter((p) => p.bookmarked).map((p) => p.policyId));
+  const filteredPolicies = activeFilter === "전체"
+      ? recommendedPolicies
+      : recommendedPolicies.filter((p) => p.category === activeFilter);
 
-  // 서버에서 이미 필터/정렬 처리하므로 클라이언트 정렬은 최신순(서버 미지원)만 적용
+  const bookmarks = new Set(filteredPolicies.filter((p) => p.bookmarked).map((p) => p.policyId));
+
   const sorted = sort === "최신순"
-      ? [...policies].reverse()
-      : policies;
+      ? [...filteredPolicies].reverse()
+      : filteredPolicies;
 
   useEffect(() => {
     if (!detailPolicyId) return;
-    const policy = policies.find((item) => item.policyId === detailPolicyId);
+    const policy = recommendedPolicies.find((item) => item.policyId === detailPolicyId);
     if (policy) setDetailPolicy(policy);
-  }, [detailPolicyId, policies]);
+  }, [detailPolicyId, recommendedPolicies]);
 
   const openDetailPolicy = (policy: Policy) => {
     setDetailPolicy(policy);
@@ -159,11 +159,7 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
     );
   }
 
-  if (error) {
-    return <EmptyPoliciesState onNavigate={onNavigate} />;
-  }
-
-  if (policies.length === 0) {
+  if (error || (!isLoading && recommendedPolicies.length === 0)) {
     return <EmptyPoliciesState onNavigate={onNavigate} />;
   }
 
@@ -353,7 +349,7 @@ export function PolicyListPage({ onNavigate }: PolicyListPageProps) {
         )}
 
         {removeConfirmId && (() => {
-          const policy = policies.find((item) => item.policyId === removeConfirmId);
+          const policy = recommendedPolicies.find((item) => item.policyId === removeConfirmId);
 
           return (
               <div
