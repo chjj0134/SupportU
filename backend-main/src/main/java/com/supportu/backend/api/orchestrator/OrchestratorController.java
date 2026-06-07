@@ -32,13 +32,4 @@ public class OrchestratorController {
 
         return response;
     }
-
-    @PostMapping("/total-benefit")
-    public void totalBenefit(@RequestBody TotalBenefitRequest request) {
-        if (request.userId() == null || request.userId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "유저 ID가 필요합니다.");
-        }
-
-        orchestratorService.totalBenefit(request.userId());
-    }
 }
