@@ -4,6 +4,7 @@ import com.supportu.backend.domain.calendar.GoogleCalendarService;
 import com.supportu.backend.domain.calendar.GoogleCalendarService.GoogleCalendarResult;
 import com.supportu.backend.domain.calendar.UserCalendarEvent;
 import com.supportu.backend.domain.calendar.UserCalendarEventRepository;
+import com.supportu.backend.domain.orchestrator.OrchestratorService;
 import com.supportu.backend.domain.policy.Policy;
 import com.supportu.backend.domain.policy.PolicyRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class CalendarEventController {
     private final UserCalendarEventRepository calendarEventRepository;
     private final PolicyRepository policyRepository;
     private final GoogleCalendarService googleCalendarService;
+    private final OrchestratorService orchestratorService;
 
     @GetMapping
     public List<CalendarEventResponse> getMyCalendarEvents(
@@ -118,7 +120,14 @@ public class CalendarEventController {
         UserCalendarEvent calendarEvent = calendarEventRepository.findByCidAndUid(cid, uid)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "일정을 찾을 수 없습니다."));
 
+        String previousApplyStatus = normalizeApplyStatus(calendarEvent.getApplyStatus());
+
         calendarEvent.updateApplyStatus(applyStatus);
+
+        if (!"benefited".equals(previousApplyStatus)
+                && "benefited".equals(applyStatus)) {
+            orchestratorService.totalBenefit(uid);
+        }
 
         Policy policy = policyRepository.findById(calendarEvent.getPolicyId()).orElse(null);
 
