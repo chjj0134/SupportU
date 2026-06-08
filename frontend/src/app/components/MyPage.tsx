@@ -5,7 +5,7 @@ import type { Policy, PolicyDetail, PolicyDocument } from "../../api/types";
 import type { CalendarEvent } from "../../api/calendar";
 import { fetchPolicyDetail } from "../../api/policies";
 import { queryKeys } from "../../lib/queryClient";
-import { useBookmarkedPolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
+import { useBookmarkedPolicies, usePolicyDetail, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
@@ -407,16 +407,23 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>("");
   const [policyJourneySteps, setPolicyJourneySteps] = useState<Record<string, number>>({});
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
+  const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
 
-  const firstEventDate = calendarEvents.length > 0
+  const baseCalendarDate = calendarEvents.length > 0
       ? new Date(calendarEvents[0].eventStartAt)
       : new Date();
-  const calendarYear = firstEventDate.getFullYear();
-  const calendarMonth = firstEventDate.getMonth() + 1;
+  const visibleCalendarDate = new Date(
+      baseCalendarDate.getFullYear(),
+      baseCalendarDate.getMonth() + calendarMonthOffset,
+      1,
+  );
+  const calendarYear = visibleCalendarDate.getFullYear();
+  const calendarMonth = visibleCalendarDate.getMonth() + 1;
   const firstDayOfMonth = new Date(calendarYear, calendarMonth - 1, 1).getDay();
   const calendarDays = buildCalendarDays(calendarEvents, calendarYear, calendarMonth);
   const registeredPolicyIds = new Set(calendarEvents.map((event) => event.policyId));
   const selectedManagedPolicyId = selectedPolicyId || managedPolicies[0]?.id || "";
+  const selectedManagedPolicyDetailQuery = usePolicyDetail(selectedManagedPolicyId);
 
   // calendarEvents 기반 동적 상태 카운트
   const appliedCount  = calendarEvents.filter(e => e.applyStatus === '지원 완료' || e.applyStatus === 'applied').length;
@@ -958,8 +965,22 @@ export function MyPage({ onNavigate }: MyPageProps) {
                       <div className="flex items-center justify-between mb-6">
                         <P style={{ fontSize: 20, fontWeight: 700, color: "#171d1c" }}>{calendarYear}년 {calendarMonth}월</P>
                         <div className="flex gap-2">
-                          <button style={{ background: "none", border: "1px solid #e3e9e7", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "#3c4947", fontFamily: "Pretendard, sans-serif" }}>‹</button>
-                          <button style={{ background: "none", border: "1px solid #e3e9e7", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "#3c4947", fontFamily: "Pretendard, sans-serif" }}>›</button>
+                          <button
+                              type="button"
+                              aria-label="이전 달"
+                              onClick={() => setCalendarMonthOffset((month) => month - 1)}
+                              style={{ background: "none", border: "1px solid #e3e9e7", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "#3c4947", fontFamily: "Pretendard, sans-serif" }}
+                          >
+                            ‹
+                          </button>
+                          <button
+                              type="button"
+                              aria-label="다음 달"
+                              onClick={() => setCalendarMonthOffset((month) => month + 1)}
+                              style={{ background: "none", border: "1px solid #e3e9e7", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "#3c4947", fontFamily: "Pretendard, sans-serif" }}
+                          >
+                            ›
+                          </button>
                         </div>
                       </div>
                       <div className="grid grid-cols-7 mb-2">
@@ -1221,6 +1242,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                             extractPolicyDocumentsMutation.variables === selectedPolicy.id;
                           const documentError = documentErrorByPolicyId[selectedPolicy.id];
                           const currentStep = policyJourneySteps[selectedPolicy.id] ?? selectedPolicy.journeyStep;
+                          const selectedPolicyDetail = selectedManagedPolicyDetailQuery.data;
+                          const originalPolicyUrl = selectedPolicyDetail?.detailUrl ?? null;
 
                           const journeySteps = [
                             { label: "지원 필요", icon: "📝" },
@@ -1445,14 +1468,18 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                 {/* Action Button */}
                                 <button
                                     className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all hover:opacity-90"
-                                    style={{ backgroundColor: "white", border: "1.5px solid #006a63", color: "#006a63", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-                                    onClick={() => window.open(`https://example.com/policy/${selectedPolicy.id}`, '_blank')}
+                                    style={{ backgroundColor: "white", border: `1.5px solid ${originalPolicyUrl ? "#006a63" : "#bbc9c7"}`, color: originalPolicyUrl ? "#006a63" : "#94a3b8", fontFamily: "Pretendard, sans-serif", fontSize: 14, fontWeight: 700, cursor: originalPolicyUrl ? "pointer" : "not-allowed" }}
+                                    onClick={() => {
+                                      if (!originalPolicyUrl) return;
+                                      window.open(originalPolicyUrl, '_blank', 'noopener,noreferrer');
+                                    }}
+                                    disabled={!originalPolicyUrl}
                                 >
                                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round"/>
-                                    <path d="M10 2H14V6M14 2L7 9" stroke="#006a63" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                                    <path d="M14 9V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H7" stroke={originalPolicyUrl ? "#006a63" : "#94a3b8"} strokeWidth="1.3" strokeLinecap="round"/>
+                                    <path d="M10 2H14V6M14 2L7 9" stroke={originalPolicyUrl ? "#006a63" : "#94a3b8"} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
                                   </svg>
-                                  원본 공고 보러가기
+                                  {selectedManagedPolicyDetailQuery.isLoading ? "원본 공고 확인 중..." : originalPolicyUrl ? "원본 공고 보러가기" : "원본 공고 없음"}
                                 </button>
                               </div>
                           );
