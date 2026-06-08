@@ -5,7 +5,7 @@ import type { Policy, PolicyDetail, PolicyDocument } from "../../api/types";
 import type { CalendarEvent } from "../../api/calendar";
 import { fetchPolicyDetail } from "../../api/policies";
 import { queryKeys } from "../../lib/queryClient";
-import { useBookmarkedPolicies, usePolicyDetail, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
+import { useBookmarkedPolicies, usePolicyDetail, useRecommendedPolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
@@ -21,6 +21,7 @@ import { getCategoryStyle } from "../../constants/categories";
 type MyPagePolicy = Policy;
 
 type PolicyCategoryLabel = "주거" | "일자리" | "복지";
+type DashboardCategoryFilter = "전체" | PolicyCategoryLabel;
 type ProfileInterest = "주거" | "일자리" | "복지";
 
 type ProfileFormState = {
@@ -79,14 +80,6 @@ const compareFields: { key: keyof MyPagePolicy; label: string }[] = [
   { key: "desc", label: "지원 개요" },
 ];
 
-const funnelData = [
-  { label: "맞춤 추천", value: 45, color: "#80cbc4" },
-  { label: "스크랩", value: 28, color: "#26a69a" },
-  { label: "일정 등록", value: 12, color: "#00897b" },
-  { label: "지원 완료", value: 5, color: "#00695c" },
-  { label: "수혜 완료", value: 2, color: "#004d40" },
-];
-
 function getStatusStyle(applyStatus: string) {
   switch (applyStatus) {
     case "지원 완료":
@@ -130,6 +123,42 @@ function getPolicyCardStatusStyle(applyStatus: string) {
     return { statusColor: "#0f766e", statusBg: "rgba(20,184,166,0.16)" };
   }
   return { statusColor: "#b42318", statusBg: "rgba(244,63,94,0.14)" };
+}
+
+function isDashboardCategoryMatch(category: string | undefined, filter: DashboardCategoryFilter) {
+  if (filter === "전체") return true;
+  return category === filter;
+}
+
+function toDashboardCategoryLabel(category: string | undefined): PolicyCategoryLabel | undefined {
+  if (category === "주거" || category === "일자리" || category === "복지") {
+    return category;
+  }
+  return undefined;
+}
+
+function getCalendarEventDate(event: CalendarEvent) {
+  return new Date(event.eventEndAt || event.eventStartAt);
+}
+
+function isOngoingCalendarEvent(event: CalendarEvent, now = new Date()) {
+  const eventDate = getCalendarEventDate(event);
+  if (Number.isNaN(eventDate.getTime())) return false;
+  return eventDate.getTime() >= now.getTime();
+}
+
+function isThisMonthCalendarEvent(event: CalendarEvent, now = new Date()) {
+  const eventDate = getCalendarEventDate(event);
+  if (Number.isNaN(eventDate.getTime())) return false;
+  return eventDate.getFullYear() === now.getFullYear() && eventDate.getMonth() === now.getMonth();
+}
+
+function clampFunnelCounts(counts: number[]) {
+  return counts.reduce<number[]>((acc, count, index) => {
+    if (index === 0) return [count];
+    acc.push(Math.min(count, acc[index - 1]));
+    return acc;
+  }, []);
 }
 
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
@@ -393,6 +422,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const saveProfileMutation = useSaveProfile();
   const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
   const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
+  const { data: recommendedPolicies = [] } = useRecommendedPolicies();
   const { data: bookmarkedPolicies = [] } = useBookmarkedPolicies();
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const { data: calendarEvents = [] } = useCalendarEvents();
@@ -432,6 +462,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
   const [mainTab, setMainTab] = useState<"scraps" | "management" | "profile">("scraps");
   const [subTab, setSubTab] = useState<"calendar" | "dashboard" | "policy">("dashboard");
+  const [dashboardCategoryFilter, setDashboardCategoryFilter] = useState<DashboardCategoryFilter>("전체");
   const [showCompare, setShowCompare] = useState(false);
   const [scheduledIds, setScheduledIds] = useState<Set<string>>(new Set());
   const [detailPolicyId, setDetailPolicyId] = useState<string | null>(null);
@@ -456,14 +487,54 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const selectedManagedPolicyId = selectedPolicyId || managedPolicies[0]?.id || "";
   const selectedManagedPolicyDetailQuery = usePolicyDetail(selectedManagedPolicyId);
 
-  // calendarEvents 기반 동적 상태 카운트
-  const appliedCount  = calendarEvents.filter(e => e.applyStatus === '지원 완료' || e.applyStatus === 'applied').length;
-  const waitingCount  = calendarEvents.filter(e => e.applyStatus === '결과 대기').length;
-  const urgentCount   = calendarEvents.filter(e => {
-    if (!e.eventEndAt) return false;
-    const dday = Math.ceil((new Date(e.eventEndAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return dday >= 0 && dday <= 7 && e.applyStatus !== '지원 완료' && e.applyStatus !== 'applied';
-  }).length;
+  const dashboardPolicyCategoryById = new Map<string, PolicyCategoryLabel>();
+  [...recommendedPolicies, ...bookmarkedPolicies].forEach((policy) => {
+    dashboardPolicyCategoryById.set(policy.id, getPolicyCategoryLabel(policy));
+  });
+
+  const getDashboardCalendarEventCategory = (event: CalendarEvent) =>
+      toDashboardCategoryLabel((event as CalendarEvent & { category?: string }).category) ??
+      dashboardPolicyCategoryById.get(event.policyId);
+
+  const filteredRecommendedPolicies = recommendedPolicies.filter((policy) =>
+      isDashboardCategoryMatch(getPolicyCategoryLabel(policy), dashboardCategoryFilter),
+  );
+  const filteredBookmarkedPolicies = bookmarkedPolicies.filter((policy) =>
+      isDashboardCategoryMatch(getPolicyCategoryLabel(policy), dashboardCategoryFilter),
+  );
+  const filteredCalendarEvents = calendarEvents.filter((event) =>
+      isDashboardCategoryMatch(getDashboardCalendarEventCategory(event), dashboardCategoryFilter),
+  );
+
+  const appliedCalendarEvents = filteredCalendarEvents.filter((event) =>
+      normalizePolicyCardApplyStatus(event.applyStatus) === "applied",
+  );
+  const benefitedCalendarEvents = filteredCalendarEvents.filter((event) =>
+      normalizePolicyCardApplyStatus(event.applyStatus) === "benefited",
+  );
+  const funnelCounts = clampFunnelCounts([
+    filteredRecommendedPolicies.length,
+    filteredBookmarkedPolicies.length,
+    filteredCalendarEvents.length,
+    appliedCalendarEvents.length,
+    benefitedCalendarEvents.length,
+  ]);
+  const dashboardFunnelData = [
+    { label: "맞춤 추천", value: funnelCounts[0] ?? 0, color: "#80cbc4" },
+    { label: "스크랩", value: funnelCounts[1] ?? 0, color: "#26a69a" },
+    { label: "일정 등록", value: funnelCounts[2] ?? 0, color: "#00897b" },
+    { label: "지원 완료", value: funnelCounts[3] ?? 0, color: "#00695c" },
+    { label: "수혜 완료", value: funnelCounts[4] ?? 0, color: "#004d40" },
+  ];
+  const dashboardFunnelMax = Math.max(dashboardFunnelData[0]?.value ?? 0, 1);
+  const requiredActionCount = filteredCalendarEvents.filter((event) =>
+      isOngoingCalendarEvent(event) && normalizePolicyCardApplyStatus(event.applyStatus) === "apply_now",
+  ).length;
+  const monthlyAppliedCount = appliedCalendarEvents.filter((event) => isThisMonthCalendarEvent(event)).length;
+  const benefitedCount = benefitedCalendarEvents.length;
+  const appliedCount = calendarEvents.filter((event) =>
+      normalizePolicyCardApplyStatus(event.applyStatus) === "applied",
+  ).length;
 
   const totalBenefitAmount = benefitSummary?.totalBenefitAmount ?? 0;
   const totalBenefitManwon = Math.floor(totalBenefitAmount / 10000);
@@ -873,9 +944,21 @@ export function MyPage({ onNavigate }: MyPageProps) {
                             <P style={{ fontSize: 14, color: "#3c4947", marginTop: 2 }}>추천부터 수혜까지의 단계를 한눈에 확인하세요.</P>
                           </div>
                           <div className="flex gap-2">
-                            {["전체", "주거", "일자리", "복지"].map((f, i) => (
-                                <button key={f} className="px-4 py-2 rounded-full text-sm" style={{ fontFamily: "Pretendard, sans-serif", backgroundColor: i === 0 ? "#006a63" : "#eff5f3", color: i === 0 ? "white" : "#3c4947", border: "none", cursor: "pointer", fontWeight: 500 }}>
-                                  {f}
+                            {(["전체", "주거", "일자리", "복지"] as DashboardCategoryFilter[]).map((filter) => (
+                                <button
+                                    key={filter}
+                                    onClick={() => setDashboardCategoryFilter(filter)}
+                                    className="px-4 py-2 rounded-full text-sm"
+                                    style={{
+                                      fontFamily: "Pretendard, sans-serif",
+                                      backgroundColor: dashboardCategoryFilter === filter ? "#006a63" : "#eff5f3",
+                                      color: dashboardCategoryFilter === filter ? "white" : "#3c4947",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      fontWeight: 500,
+                                    }}
+                                >
+                                  {filter}
                                 </button>
                             ))}
                           </div>
@@ -883,10 +966,10 @@ export function MyPage({ onNavigate }: MyPageProps) {
                         <div className="flex gap-8">
                           {/* Left: Funnel Chart - 60% */}
                           <div className="flex flex-col gap-3" style={{ width: "60%" }}>
-                            {funnelData.map((item) => (
+                            {dashboardFunnelData.map((item) => (
                                 <div key={item.label} className="flex items-center gap-6">
                                   <div className="flex-1 flex justify-end">
-                                    <div className="h-10 rounded-lg" style={{ width: `${(item.value / 45) * 100}%`, backgroundColor: item.color, minWidth: 40 }} />
+                                    <div className="h-10 rounded-lg" style={{ width: `${(item.value / dashboardFunnelMax) * 100}%`, backgroundColor: item.color, minWidth: item.value > 0 ? 40 : 0 }} />
                                   </div>
                                   <div className="flex items-center gap-3" style={{ minWidth: 180 }}>
                                     <div className="h-px w-8" style={{ backgroundColor: "#bbc9c7" }} />
@@ -909,9 +992,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
                               </div>
                               <div className="flex flex-col gap-3">
                                 {[
-                                  { label: "지원 필요", sub: "마감 임박 공고", value: `${urgentCount}건`, color: "#ba1a1a", bg: "rgba(186,26,26,0.1)" },
-                                  { label: "지원 완료", sub: "이번 달 누적", value: `${appliedCount}건`, color: "#006a63", bg: "rgba(0,106,99,0.1)" },
-                                  { label: "결과 대기", sub: "심사 진행 중", value: `${waitingCount}건`, color: "#3b6661", bg: "rgba(59,102,97,0.1)" },
+                                  { label: "지원 필요", sub: "진행 중인 지원 관리 정책", value: `${requiredActionCount}건`, color: "#ba1a1a", bg: "rgba(186,26,26,0.1)" },
+                                  { label: "지원 완료", sub: "이번 달 누적", value: `${monthlyAppliedCount}건`, color: "#006a63", bg: "rgba(0,106,99,0.1)" },
+                                  { label: "수혜 받은 건", sub: "수혜 완료", value: `${benefitedCount}건`, color: "#7c2d12", bg: "rgba(251,146,60,0.18)" },
                                 ].map((card) => (
                                     <div key={card.label} className="flex items-center justify-between p-4 rounded-xl bg-white" style={{ border: "1px solid #e9efed" }}>
                                       <div className="flex items-center gap-3">
