@@ -2,14 +2,14 @@
 import { useQueries } from "@tanstack/react-query";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import type { Policy, PolicyDetail, PolicyDocument } from "../../api/types";
-import type { CalendarEvent } from "../../api/calendar";
+import type { CalendarApplyStatus, CalendarEvent } from "../../api/calendar";
 import { fetchPolicyDetail } from "../../api/policies";
 import { queryKeys } from "../../lib/queryClient";
 import { useBookmarkedPolicies, usePolicyDetail, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
-import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
-import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
+import { useBenefitSummary } from "../../api/queries/useBenefitQueries";
+import { useCalendarEvents, useCreateCalendarEventFromPolicy, useUpdateCalendarEventStatus } from "../../api/queries/useCalendarQueries";
 import { useExtractPolicyDocuments } from "../../api/queries/useOrchestratorQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
@@ -87,18 +87,37 @@ const funnelData = [
   { label: "수혜 완료", value: 2, color: "#004d40" },
 ];
 
+function normalizeApplyStatus(applyStatus: string): CalendarApplyStatus {
+  if (applyStatus === "benefited" || applyStatus === "수혜 완료" || applyStatus === "수혜완료") {
+    return "benefited";
+  }
+  if (applyStatus === "applied" || applyStatus === "지원 완료" || applyStatus === "지원완료" || applyStatus === "결과 대기" || applyStatus === "결과대기") {
+    return "applied";
+  }
+  if (applyStatus === "pending") {
+    return "pending";
+  }
+  return "apply_now";
+}
+
+function formatApplyStatusLabel(applyStatus: string) {
+  const normalizedStatus = normalizeApplyStatus(applyStatus);
+
+  if (normalizedStatus === "benefited") return "수혜완료";
+  if (normalizedStatus === "applied") return "지원완료";
+  return "지원필요";
+}
+
 function getStatusStyle(applyStatus: string) {
-  switch (applyStatus) {
-    case "지원 완료":
-    case "applied":
-      return { statusColor: "#3b6661", statusBg: "rgba(59,102,97,0.1)", progress: 70, journeyStep: 2 };
-    case "결과 대기":
-      return { statusColor: "#3b6661", statusBg: "rgba(59,102,97,0.1)", progress: 70, journeyStep: 2 };
-    case "수혜 완료":
+  const normalizedStatus = normalizeApplyStatus(applyStatus);
+
+  switch (normalizedStatus) {
     case "benefited":
-      return { statusColor: "#004d40", statusBg: "rgba(0,77,64,0.1)", progress: 100, journeyStep: 3 };
+      return { statusLabel: "수혜완료", statusColor: "#7c2d12", statusBg: "rgba(251,146,60,0.18)", progress: 100, journeyStep: 2 };
+    case "applied":
+      return { statusLabel: "지원완료", statusColor: "#0f766e", statusBg: "rgba(20,184,166,0.16)", progress: 60, journeyStep: 1 };
     default:
-      return { statusColor: "#ba1a1a", statusBg: "rgba(186,26,26,0.1)", progress: 0, journeyStep: 0 };
+      return { statusLabel: "지원필요", statusColor: "#b42318", statusBg: "rgba(244,63,94,0.14)", progress: 0, journeyStep: 0 };
   }
 }
 
@@ -362,11 +381,11 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const { data: profile } = useProfile();
   const saveProfileMutation = useSaveProfile();
   const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
-  const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
   const { data: bookmarkedPolicies = [] } = useBookmarkedPolicies();
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const { data: calendarEvents = [] } = useCalendarEvents();
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
+  const updateCalendarEventStatusMutation = useUpdateCalendarEventStatus();
   const extractPolicyDocumentsMutation = useExtractPolicyDocuments();
   const [policyDocumentsById, setPolicyDocumentsById] = useState<Record<string, PolicyDocument[]>>({});
   const [documentErrorByPolicyId, setDocumentErrorByPolicyId] = useState<Record<string, string>>({});
@@ -379,10 +398,11 @@ export function MyPage({ onNavigate }: MyPageProps) {
       : 0;
 
     return {
+      cid: event.cid,
       id: event.policyId,
       title: event.title,
       org: event.org,
-      status: event.applyStatus,
+      status: formatApplyStatusLabel(event.applyStatus),
       statusColor,
       statusBg,
       progress,
@@ -405,7 +425,6 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [scheduledIds, setScheduledIds] = useState<Set<string>>(new Set());
   const [detailPolicyId, setDetailPolicyId] = useState<string | null>(null);
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>("");
-  const [policyJourneySteps, setPolicyJourneySteps] = useState<Record<string, number>>({});
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
   const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
 
@@ -1124,10 +1143,9 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
                           if (!selectedPolicy) {
                             const journeySteps = [
-                              { label: "지원 필요", icon: "📝" },
-                              { label: "지원 완료", icon: "✅" },
-                              { label: "결과 대기", icon: "⏳" },
-                              { label: "수혜 완료", icon: "🎉" },
+                              { label: "지원필요", icon: "📝" },
+                              { label: "지원완료", icon: "✅" },
+                              { label: "수혜완료", icon: "🎉" },
                             ];
 
                             return (
@@ -1241,28 +1259,24 @@ export function MyPage({ onNavigate }: MyPageProps) {
                             extractPolicyDocumentsMutation.isPending &&
                             extractPolicyDocumentsMutation.variables === selectedPolicy.id;
                           const documentError = documentErrorByPolicyId[selectedPolicy.id];
-                          const currentStep = policyJourneySteps[selectedPolicy.id] ?? selectedPolicy.journeyStep;
+                          const currentStep = selectedPolicy.journeyStep;
                           const selectedPolicyDetail = selectedManagedPolicyDetailQuery.data;
                           const originalPolicyUrl = selectedPolicyDetail?.detailUrl ?? null;
 
-                          const journeySteps = [
-                            { label: "지원 필요", icon: "📝" },
-                            { label: "지원 완료", icon: "✅" },
-                            { label: "결과 대기", icon: "⏳" },
-                            { label: "수혜 완료", icon: "🎉" },
+                          const journeySteps: { label: string; icon: string; applyStatus: CalendarApplyStatus }[] = [
+                            { label: "지원필요", icon: "📝", applyStatus: "apply_now" },
+                            { label: "지원완료", icon: "✅", applyStatus: "applied" },
+                            { label: "수혜완료", icon: "🎉", applyStatus: "benefited" },
                           ];
 
-                          const updateJourneyStep = (step: number) => {
-                            const nextStep = step === 1 ? 2 : step;
+                          const updateJourneyStep = (applyStatus: CalendarApplyStatus) => {
+                            if (updateCalendarEventStatusMutation.isPending) return;
+                            if (normalizeApplyStatus(selectedPolicy.status) === applyStatus) return;
 
-                            setPolicyJourneySteps((prev) => ({
-                              ...prev,
-                              [selectedPolicy.id]: nextStep,
-                            }));
-
-                            if ((step === 1 || step === 3) && nextStep !== currentStep) {
-                              triggerTotalBenefitMutation.mutate();
-                            }
+                            updateCalendarEventStatusMutation.mutate({
+                              cid: selectedPolicy.cid,
+                              applyStatus,
+                            });
                           };
 
                           return (
@@ -1301,20 +1315,23 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                     {journeySteps.map((step, idx) => {
                                       const isCompleted = idx <= currentStep;
                                       const isActive = idx === currentStep;
+                                      const stepStyle = getStatusStyle(step.applyStatus);
 
                                       return (
                                           <div
                                               key={idx}
-                                              className="flex flex-col items-center gap-2 cursor-pointer transition-all relative"
+                                              className="flex flex-col items-center gap-2 transition-all relative"
                                               style={{ flex: 1, zIndex: 1 }}
-                                              onClick={() => updateJourneyStep(idx)}
+                                              onClick={() => updateJourneyStep(step.applyStatus)}
                                           >
                                             <div
                                                 className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
                                                 style={{
-                                                  backgroundColor: isCompleted ? "#006a63" : "white",
-                                                  border: `3px solid ${isCompleted ? "#006a63" : "#e9efed"}`,
-                                                  boxShadow: isActive ? "0 0 0 4px rgba(0,106,99,0.1)" : "none",
+                                                  backgroundColor: isCompleted ? stepStyle.statusColor : "white",
+                                                  border: `3px solid ${isCompleted ? stepStyle.statusColor : "#e9efed"}`,
+                                                  boxShadow: isActive ? `0 0 0 4px ${stepStyle.statusBg}` : "none",
+                                                  cursor: updateCalendarEventStatusMutation.isPending ? "not-allowed" : "pointer",
+                                                  opacity: updateCalendarEventStatusMutation.isPending ? 0.65 : 1,
                                                   transform: isActive ? "scale(1.1)" : "scale(1)",
                                                 }}
                                             >
@@ -1330,7 +1347,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
                                                 style={{
                                                   fontSize: 12,
                                                   fontWeight: isCompleted ? 700 : 500,
-                                                  color: isCompleted ? "#006a63" : "#94a3b8",
+                                                  color: isCompleted ? stepStyle.statusColor : "#94a3b8",
                                                   textAlign: "center",
                                                   whiteSpace: "nowrap",
                                                 }}
