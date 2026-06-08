@@ -7,6 +7,7 @@ export interface CalendarEvent {
     eventStartAt: string;
     eventEndAt: string;
     org: string;
+    category?: string;
     applyStatus: string;
 }
 
