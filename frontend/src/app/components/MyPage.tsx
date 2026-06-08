@@ -9,7 +9,7 @@ import { useBookmarkedPolicies, usePolicyDetail, useTogglePolicyBookmark } from 
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
-import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
+import { useCalendarEvents, useCreateCalendarEventFromPolicy, useUpdateCalendarEventStatus } from "../../api/queries/useCalendarQueries";
 import { useExtractPolicyDocuments } from "../../api/queries/useOrchestratorQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
@@ -367,6 +367,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const { data: calendarEvents = [] } = useCalendarEvents();
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
+  const updateCalendarEventStatusMutation = useUpdateCalendarEventStatus();
   const extractPolicyDocumentsMutation = useExtractPolicyDocuments();
   const [policyDocumentsById, setPolicyDocumentsById] = useState<Record<string, PolicyDocument[]>>({});
   const [documentErrorByPolicyId, setDocumentErrorByPolicyId] = useState<Record<string, string>>({});
@@ -379,6 +380,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
       : 0;
 
     return {
+      cid: event.cid,
       id: event.policyId,
       title: event.title,
       org: event.org,
@@ -1254,6 +1256,21 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
                           const updateJourneyStep = (step: number) => {
                             const nextStep = step === 1 ? 2 : step;
+
+                            if (step === 3) {
+                              updateCalendarEventStatusMutation.mutate(
+                                { cid: selectedPolicy.cid, applyStatus: "benefited" },
+                                {
+                                  onSuccess: () => {
+                                    setPolicyJourneySteps((prev) => ({
+                                      ...prev,
+                                      [selectedPolicy.id]: nextStep,
+                                    }));
+                                  },
+                                },
+                              );
+                              return;
+                            }
 
                             setPolicyJourneySteps((prev) => ({
                               ...prev,
