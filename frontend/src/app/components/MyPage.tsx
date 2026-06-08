@@ -102,6 +102,36 @@ function getStatusStyle(applyStatus: string) {
   }
 }
 
+function normalizePolicyCardApplyStatus(applyStatus: string) {
+  if (applyStatus === "benefited" || applyStatus === "수혜 완료" || applyStatus === "수혜완료") {
+    return "benefited";
+  }
+  if (applyStatus === "applied" || applyStatus === "지원 완료" || applyStatus === "지원완료" || applyStatus === "결과 대기" || applyStatus === "결과대기") {
+    return "applied";
+  }
+  return "apply_now";
+}
+
+function formatPolicyCardApplyStatus(applyStatus: string) {
+  const normalizedStatus = normalizePolicyCardApplyStatus(applyStatus);
+
+  if (normalizedStatus === "benefited") return "수혜완료";
+  if (normalizedStatus === "applied") return "지원완료";
+  return "지원 필요";
+}
+
+function getPolicyCardStatusStyle(applyStatus: string) {
+  const normalizedStatus = normalizePolicyCardApplyStatus(applyStatus);
+
+  if (normalizedStatus === "benefited") {
+    return { statusColor: "#7c2d12", statusBg: "rgba(251,146,60,0.18)" };
+  }
+  if (normalizedStatus === "applied") {
+    return { statusColor: "#0f766e", statusBg: "rgba(20,184,166,0.16)" };
+  }
+  return { statusColor: "#b42318", statusBg: "rgba(244,63,94,0.14)" };
+}
+
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 
 type CalendarDay = {
@@ -372,7 +402,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const [documentErrorByPolicyId, setDocumentErrorByPolicyId] = useState<Record<string, string>>({});
 
   const managedPolicies = calendarEvents.map((event) => {
-    const { statusColor, statusBg, progress, journeyStep } = getStatusStyle(event.applyStatus);
+    const { progress, journeyStep } = getStatusStyle(event.applyStatus);
+    const { statusColor, statusBg } = getPolicyCardStatusStyle(event.applyStatus);
     const deadline = event.eventEndAt ?? "상시";
     const dday = event.eventEndAt
       ? Math.max(0, Math.ceil((new Date(event.eventEndAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
@@ -382,7 +413,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
       id: event.policyId,
       title: event.title,
       org: event.org,
-      status: event.applyStatus,
+      status: formatPolicyCardApplyStatus(event.applyStatus),
       statusColor,
       statusBg,
       progress,
