@@ -2,8 +2,11 @@ package com.supportu.backend.global.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -15,14 +18,24 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        RequestMatcher apiRequestMatcher = request ->
+                request.getRequestURI().startsWith("/api/");
+
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/api/auth/success", "/error").permitAll()
+                        .requestMatchers("/", "/error", "/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/api/auth/success").authenticated()
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exception -> exception
+                        .defaultAuthenticationEntryPointFor(
+                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                                apiRequestMatcher
+                        )
                 )
                 .oauth2Login(oauth2 -> oauth2
                         .defaultSuccessUrl("http://localhost:5173", true)
