@@ -11,6 +11,7 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.boot.web.servlet.server.CookieSameSiteSupplier;
 
 import java.util.List;
 
@@ -66,4 +67,10 @@ public class SecurityConfig {
 
         return source;
     }
+    
+    @Bean
+    public CookieSameSiteSupplier applicationCookieSameSiteSupplier() {
+        return CookieSameSiteSupplier.ofNone().whenHasName("JSESSIONID");
+    }
 }
+
