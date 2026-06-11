@@ -3,12 +3,7 @@ import { useSearchParams } from "react-router";
 import { initiateGoogleLogin } from "../../api/auth";
 import { P } from "./common/Typography";
 
-interface LoginPageProps {
-  onNavigate: () => void;
-  onSignup: () => void;
-}
-
-export function LoginPage({ onNavigate, onSignup }: LoginPageProps) {
+export function LoginPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const loginError = searchParams.get("error");
   const errorDescription = searchParams.get("error_description") ?? searchParams.get("message");
@@ -227,7 +222,7 @@ export function LoginPage({ onNavigate, onSignup }: LoginPageProps) {
             {/* Google Signup Button */}
             <button
               type="button"
-              onClick={onSignup}
+              onClick={handleGoogleLogin}
               className="w-full py-4 rounded-xl text-base font-semibold transition-all hover:shadow-lg active:scale-98 flex items-center justify-center gap-3"
               style={{
                 backgroundColor: "white",

@@ -115,19 +115,24 @@ function MyPageRoute() {
 
 
 function LoginRoute() {
-  const navigate = useNavigate();
   return (
       <PublicOnlyRoute>
-        <LoginPage
-            onNavigate={() => navigate('/')}
-            onSignup={() => navigate('/signup')}
-        />
+        <LoginPage />
       </PublicOnlyRoute>
   );
 }
 
 function SignupRoute() {
   const navigate = useNavigate();
+  const { data: user, isLoading: isAuthLoading } = useAuthUser();
+  const { data: profile, isLoading: isProfileLoading } = useProfile();
+
+  if (isAuthLoading) return <Spinner fullScreen label="로딩 중..." />;
+  if (!user) return <Navigate to="/login" replace />;
+
+  if (isProfileLoading) return <Spinner fullScreen label="프로필 확인 중..." />;
+  if (isProfileComplete(profile)) return <Navigate to="/" replace />;
+
   return (
       <SignupPage
           onComplete={() => navigate('/', { replace: true })}
