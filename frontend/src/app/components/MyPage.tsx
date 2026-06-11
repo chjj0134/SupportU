@@ -8,7 +8,7 @@ import { queryKeys } from "../../lib/queryClient";
 import { useBookmarkedPolicies, usePolicyDetail, useRecommendedPolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
-import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
+import { useBenefitSummary } from "../../api/queries/useBenefitQueries";
 import { useCalendarEvents, useCreateCalendarEventFromPolicy, useUpdateCalendarEventStatus } from "../../api/queries/useCalendarQueries";
 import { useExtractPolicyDocuments } from "../../api/queries/useOrchestratorQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
@@ -361,7 +361,7 @@ function CompareModal({
                     const value = p[field.key as keyof MyPagePolicy] ?? "-";
                     return (
                         <div key={p.id} className="bg-white px-5 py-4">
-                          {field.key === "supportScale" ? (
+                          {field.key === "support" ? (
                               <P style={{ fontSize: 14, fontWeight: 700, color: "#006a63" }}>{String(value)}</P>
                           ) : (
                               <P style={{ fontSize: 14, color: "#171d1c", lineHeight: 1.5 }}>{String(value)}</P>
@@ -427,7 +427,6 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const { data: profile } = useProfile();
   const saveProfileMutation = useSaveProfile();
   const { data: benefitSummary, isLoading: isBenefitSummaryLoading } = useBenefitSummary(profile?.uid);
-  const triggerTotalBenefitMutation = useTriggerTotalBenefit(profile?.uid);
   const { data: recommendedPolicies = [] } = useRecommendedPolicies();
   const { data: bookmarkedPolicies = [] } = useBookmarkedPolicies();
   const toggleBookmarkMutation = useTogglePolicyBookmark();
@@ -443,8 +442,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
     const { statusColor, statusBg } = getPolicyCardStatusStyle(event.applyStatus);
     const deadline = event.eventEndAt ?? "상시";
     const dday = event.eventEndAt
-      ? Math.max(0, Math.ceil((new Date(event.eventEndAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-      : 0;
+        ? Math.max(0, Math.ceil((new Date(event.eventEndAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : 0;
 
     return {
       cid: event.cid,
@@ -1360,8 +1359,8 @@ export function MyPage({ onNavigate }: MyPageProps) {
                           const totalDocs = selectedPolicy.documents.length;
                           const requiredDocs = selectedPolicy.documents.filter((doc) => doc.required).length;
                           const isExtractingDocuments =
-                            extractPolicyDocumentsMutation.isPending &&
-                            extractPolicyDocumentsMutation.variables === selectedPolicy.id;
+                              extractPolicyDocumentsMutation.isPending &&
+                              extractPolicyDocumentsMutation.variables === selectedPolicy.id;
                           const documentError = documentErrorByPolicyId[selectedPolicy.id];
                           const currentStep = policyJourneySteps[selectedPolicy.id] ?? selectedPolicy.journeyStep;
                           const selectedPolicyDetail = selectedManagedPolicyDetailQuery.data;
@@ -1379,19 +1378,15 @@ export function MyPage({ onNavigate }: MyPageProps) {
                             const applyStatus = getApplyStatusForJourneyStep(nextStep);
 
                             updateCalendarEventStatusMutation.mutate(
-                              { cid: selectedPolicy.cid, applyStatus },
-                              {
-                                onSuccess: () => {
-                                  setPolicyJourneySteps((prev) => ({
-                                    ...prev,
-                                    [selectedPolicy.id]: nextStep,
-                                  }));
-
-                                  if ((step === 1 || step === 3) && nextStep !== currentStep) {
-                                    triggerTotalBenefitMutation.mutate();
-                                  }
+                                { cid: selectedPolicy.cid, applyStatus },
+                                {
+                                  onSuccess: () => {
+                                    setPolicyJourneySteps((prev) => ({
+                                      ...prev,
+                                      [selectedPolicy.id]: nextStep,
+                                    }));
+                                  },
                                 },
-                              },
                             );
                           };
 

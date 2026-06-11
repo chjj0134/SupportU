@@ -46,6 +46,7 @@ export function useUpdateCalendarEventStatus() {
             updateCalendarEventStatus(request),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.calendar.events() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.benefits.all() });
         },
     });
 }
