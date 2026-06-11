@@ -3,6 +3,8 @@ import {
     createCalendarEventFromPolicy,
     deleteCalendarEvent,
     fetchCalendarEvents,
+    updateCalendarEventStatus,
+    type UpdateCalendarEventStatusRequest,
 } from '../calendar';
 import { queryKeys } from '../../lib/queryClient';
 
@@ -30,6 +32,18 @@ export function useDeleteCalendarEvent() {
 
     return useMutation({
         mutationFn: (cid: string) => deleteCalendarEvent(cid),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.calendar.events() });
+        },
+    });
+}
+
+export function useUpdateCalendarEventStatus() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (request: UpdateCalendarEventStatusRequest) =>
+            updateCalendarEventStatus(request),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.calendar.events() });
         },

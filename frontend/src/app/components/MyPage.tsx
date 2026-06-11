@@ -2,14 +2,14 @@
 import { useQueries } from "@tanstack/react-query";
 import imgUserAvatar from "figma:asset/d53360f080d65508be933ce1738e47c95909ed9e.png";
 import type { Policy, PolicyDetail, PolicyDocument } from "../../api/types";
-import type { CalendarEvent } from "../../api/calendar";
+import type { CalendarApplyStatus, CalendarEvent } from "../../api/calendar";
 import { fetchPolicyDetail } from "../../api/policies";
 import { queryKeys } from "../../lib/queryClient";
 import { useBookmarkedPolicies, usePolicyDetail, useRecommendedPolicies, useTogglePolicyBookmark } from "../../api/queries/usePolicyQueries";
 import { useAuthUser } from "../../api/queries/useAuthQueries";
 import { useProfile, useSaveProfile } from "../../api/queries/useProfileQueries";
 import { useBenefitSummary, useTriggerTotalBenefit } from "../../api/queries/useBenefitQueries";
-import { useCalendarEvents, useCreateCalendarEventFromPolicy } from "../../api/queries/useCalendarQueries";
+import { useCalendarEvents, useCreateCalendarEventFromPolicy, useUpdateCalendarEventStatus } from "../../api/queries/useCalendarQueries";
 import { useExtractPolicyDocuments } from "../../api/queries/useOrchestratorQueries";
 import { useCompareStore } from "../../stores/useCompareStore";
 import { P } from "./common/Typography";
@@ -123,6 +123,12 @@ function getPolicyCardStatusStyle(applyStatus: string) {
     return { statusColor: "#0f766e", statusBg: "rgba(20,184,166,0.16)" };
   }
   return { statusColor: "#b42318", statusBg: "rgba(244,63,94,0.14)" };
+}
+
+function getApplyStatusForJourneyStep(step: number): CalendarApplyStatus {
+  if (step === 3) return "benefited";
+  if (step === 1 || step === 2) return "applied";
+  return "apply_now";
 }
 
 function isDashboardCategoryMatch(category: string | undefined, filter: DashboardCategoryFilter) {
@@ -427,6 +433,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
   const toggleBookmarkMutation = useTogglePolicyBookmark();
   const { data: calendarEvents = [] } = useCalendarEvents();
   const createCalendarEventMutation = useCreateCalendarEventFromPolicy();
+  const updateCalendarEventStatusMutation = useUpdateCalendarEventStatus();
   const extractPolicyDocumentsMutation = useExtractPolicyDocuments();
   const [policyDocumentsById, setPolicyDocumentsById] = useState<Record<string, PolicyDocument[]>>({});
   const [documentErrorByPolicyId, setDocumentErrorByPolicyId] = useState<Record<string, string>>({});
@@ -440,6 +447,7 @@ export function MyPage({ onNavigate }: MyPageProps) {
       : 0;
 
     return {
+      cid: event.cid,
       id: event.policyId,
       title: event.title,
       org: event.org,
@@ -1368,15 +1376,23 @@ export function MyPage({ onNavigate }: MyPageProps) {
 
                           const updateJourneyStep = (step: number) => {
                             const nextStep = step === 1 ? 2 : step;
+                            const applyStatus = getApplyStatusForJourneyStep(nextStep);
 
-                            setPolicyJourneySteps((prev) => ({
-                              ...prev,
-                              [selectedPolicy.id]: nextStep,
-                            }));
+                            updateCalendarEventStatusMutation.mutate(
+                              { cid: selectedPolicy.cid, applyStatus },
+                              {
+                                onSuccess: () => {
+                                  setPolicyJourneySteps((prev) => ({
+                                    ...prev,
+                                    [selectedPolicy.id]: nextStep,
+                                  }));
 
-                            if ((step === 1 || step === 3) && nextStep !== currentStep) {
-                              triggerTotalBenefitMutation.mutate();
-                            }
+                                  if ((step === 1 || step === 3) && nextStep !== currentStep) {
+                                    triggerTotalBenefitMutation.mutate();
+                                  }
+                                },
+                              },
+                            );
                           };
 
                           return (
