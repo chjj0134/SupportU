@@ -83,7 +83,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const filteredPolicies =
       activeFilter === "전체"
           ? recommendedPolicies
-          : recommendedPolicies.filter((p) => p.category === activeFilter);
+          : recommendedPolicies.filter((p) => p.categoryKr === activeFilter);
 
   return (
       <div className="min-h-screen pt-16" style={{ backgroundColor: "#f5fbf8" }}>
